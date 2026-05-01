@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BleMap | Case Submission</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Noto+Serif:ital,wght@0,400;0,700;1,400;1,700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-background": "#e5e2e1",
+                        "primary-fixed": "#ffdcc1",
+                        "on-surface": "#e5e2e1",
+                        "error-container": "#93000a",
+                        "surface-container-high": "#2a2a2a",
+                        "on-surface-variant": "#d8c2b2",
+                        "on-secondary-container": "#004c46",
+                        "surface": "#131313",
+                        "on-tertiary-fixed-variant": "#753401",
+                        "on-tertiary-fixed": "#321200",
+                        "on-primary-fixed-variant": "#6c3a00",
+                        "surface-variant": "#353534",
+                        "tertiary-container": "#d17c46",
+                        "on-secondary-fixed": "#00201d",
+                        "inverse-surface": "#e5e2e1",
+                        "tertiary": "#ffb68c",
+                        "background": "#131313",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-secondary-fixed-variant": "#005049",
+                        "secondary-fixed": "#61f9e9",
+                        "on-tertiary": "#532200",
+                        "surface-tint": "#ffb779",
+                        "surface-container": "#201f1f",
+                        "primary": "#ffb779",
+                        "on-tertiary-container": "#491e00",
+                        "surface-dim": "#131313",
+                        "tertiary-fixed": "#ffdbc9",
+                        "outline": "#a18d7f",
+                        "on-primary-container": "#432200",
+                        "inverse-on-surface": "#313030",
+                        "surface-container-low": "#1c1b1b",
+                        "secondary-fixed-dim": "#3adccc",
+                        "tertiary-fixed-dim": "#ffb68c",
+                        "on-primary": "#4c2700",
+                        "outline-variant": "#534438",
+                        "primary-fixed-dim": "#ffb779",
+                        "inverse-primary": "#8e4e00",
+                        "error": "#ffb4ab",
+                        "secondary": "#43e2d2",
+                        "surface-container-highest": "#353534",
+                        "secondary-container": "#00c6b6",
+                        "on-secondary": "#003732",
+                        "on-primary-fixed": "#2e1500",
+                        "on-error-container": "#ffdad6",
+                        "on-error": "#690005",
+                        "surface-bright": "#393939",
+                        "primary-container": "#cd7f32"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Noto Serif"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #131313; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #534438; border-radius: 10px; }
+    </style>
+    <script>
+        // API base URL - adjust if needed
+        const API_BASE = 'http://localhost:3000/api';
+
+        // DOM elements
+        const problemTextarea = document.querySelector('textarea[placeholder*="What situation are you observing"]');
+        const submitButton = document.querySelector('button:has(.material-symbols-outlined:contains("arrow_forward"))') ||
+                           document.querySelector('button:contains("Commit to Archive")');
+
+        // Submit case function
+        async function submitCase() {
+            const rawInput = problemTextarea.value.trim();
+
+            if (!rawInput) {
+                alert('Please describe your problem first');
+                return;
+            }
+
+            // Disable button during submission
+            submitButton.disabled = true;
+            submitButton.textContent = 'Submitting...';
+
+            try {
+                const response = await fetch(`${API_BASE}/cases`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ rawInput })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Case submitted successfully! It will be reviewed by the community.');
+                    problemTextarea.value = ''; // Clear the form
+                    console.log('Submitted case:', result.data);
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Submission error:', error);
+                alert('Failed to submit case. Please try again.');
+            } finally {
+                // Re-enable button
+                submitButton.disabled = false;
+                submitButton.innerHTML = `
+                    Commit to Archive
+                    <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                `;
+            }
+        }
+
+        // Add click handler to submit button
+        if (submitButton) {
+            submitButton.addEventListener('click', submitCase);
+        }
+
+        // Allow Enter key to submit (Ctrl+Enter for multi-line)
+        problemTextarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                submitCase();
+            }
+        });
+    </script>
+</head>
+<body class="bg-surface text-on-surface font-body selection:bg-secondary/30">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#131313] dark:bg-[#131313] bg-[#1c1b1b] flex justify-between items-center px-8 py-4 w-full h-16">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-['Noto_Serif'] italic text-[#ffb779]">BleMap</span>
+<nav class="hidden md:flex gap-6">
+<a class="font-['Noto_Serif'] font-bold text-lg tracking-tight text-[#e5e2e1] opacity-70 hover:opacity-100 hover:text-[#43e2d2] transition-colors cursor-pointer active:scale-95 duration-200" href="#">Explorer</a>
+<a class="font-['Noto_Serif'] font-bold text-lg tracking-tight text-[#e5e2e1] opacity-70 hover:opacity-100 hover:text-[#43e2d2] transition-colors cursor-pointer active:scale-95 duration-200" href="#">Archives</a>
+<a class="font-['Noto_Serif'] font-bold text-lg tracking-tight text-[#e5e2e1] opacity-70 hover:opacity-100 hover:text-[#43e2d2] transition-colors cursor-pointer active:scale-95 duration-200" href="#">Methodology</a>
+</nav>
+</div>
+<div class="flex items-center gap-4 text-[#ffb779]">
+<span class="material-symbols-outlined cursor-pointer active:scale-95 duration-200">notifications</span>
+<span class="material-symbols-outlined cursor-pointer active:scale-95 duration-200">history</span>
+<span class="material-symbols-outlined cursor-pointer active:scale-95 duration-200">account_circle</span>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="h-screen w-72 left-0 top-0 fixed bg-[#1c1b1b] border-r border-[#534438]/15 shadow-[40px_0_40px_-20px_rgba(229,226,225,0.06)] flex flex-col h-full pt-20 pb-8 px-4 z-40">
+<div class="mb-10 px-4">
+<h2 class="text-lg font-['Noto_Serif'] text-[#ffb779]">The Living Archive</h2>
+<p class="font-['Inter'] font-medium text-sm text-[#e5e2e1] opacity-60">Knowledge Mapping</p>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="flex items-center gap-3 px-4 py-3 font-['Inter'] font-medium text-sm text-[#e5e2e1] opacity-60 hover:bg-[#2a2a2a] hover:opacity-100 transition-all ease-in-out duration-300" href="#">
+<span class="material-symbols-outlined">gavel</span> Problem Ledger
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 font-['Inter'] font-medium text-sm bg-[#201f1f] text-[#43e2d2] border-l-4 border-[#43e2d2] transition-all ease-in-out duration-300" href="#">
+<span class="material-symbols-outlined">storm</span> AI Synthesis
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 font-['Inter'] font-medium text-sm text-[#e5e2e1] opacity-60 hover:bg-[#2a2a2a] hover:opacity-100 transition-all ease-in-out duration-300" href="#">
+<span class="material-symbols-outlined">hub</span> Resource Map
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 font-['Inter'] font-medium text-sm text-[#e5e2e1] opacity-60 hover:bg-[#2a2a2a] hover:opacity-100 transition-all ease-in-out duration-300" href="#">
+<span class="material-symbols-outlined">folder_open</span> Case Files
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 font-['Inter'] font-medium text-sm text-[#e5e2e1] opacity-60 hover:bg-[#2a2a2a] hover:opacity-100 transition-all ease-in-out duration-300" href="#">
+<span class="material-symbols-outlined">settings</span> Settings
+            </a>
+</nav>
+<button class="mx-4 mt-4 mb-8 py-3 bg-primary-container text-on-primary-container font-semibold roundedness-sm active:scale-95 transition-transform">
+            Capture Insight
+        </button>
+<div class="border-t border-[#534438]/15 pt-6 space-y-2">
+<a class="flex items-center gap-3 px-4 py-2 font-['Inter'] font-medium text-sm text-[#e5e2e1] opacity-60 hover:opacity-100 transition-all" href="#">
+<span class="material-symbols-outlined text-sm">help_outline</span> Help
+            </a>
+<a class="flex items-center gap-3 px-4 py-2 font-['Inter'] font-medium text-sm text-[#e5e2e1] opacity-60 hover:opacity-100 transition-all" href="#">
+<span class="material-symbols-outlined text-sm">logout</span> Logout
+            </a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-72 pt-16 min-h-screen bg-surface">
+<div class="max-w-5xl mx-auto px-12 py-16">
+<!-- Header Section -->
+<header class="mb-16">
+<h1 class="font-headline text-5xl font-bold text-on-surface mb-4">Case Submission</h1>
+<p class="font-body text-on-surface-variant max-w-xl">Document the unfolding complexity. Our AI synthesis engine will distill your observations into the archive's structure.</p>
+</header>
+<!-- Step 1: Input Area -->
+<section class="mb-20">
+<div class="bg-surface-container-low p-10 rounded-none border-l-2 border-primary-container relative group">
+<div class="absolute -top-3 left-6 px-3 bg-surface text-primary text-xs font-bold tracking-widest uppercase">Input Stream</div>
+<textarea class="w-full bg-transparent border-none focus:ring-0 text-3xl font-headline italic text-on-surface placeholder:text-on-surface/20 min-h-[120px] resize-none" placeholder="What situation are you observing?"></textarea>
+<!-- 3-Way Toggle -->
+<div class="mt-8 flex items-center gap-1 bg-surface-container-lowest p-1 rounded-full w-fit border border-outline-variant/20">
+<button class="px-6 py-2 text-xs font-bold rounded-full transition-all bg-primary-container text-on-primary-container">PROBLEM</button>
+<button class="px-6 py-2 text-xs font-bold rounded-full transition-all text-on-surface/40 hover:text-on-surface">SOLUTION</button>
+<button class="px-6 py-2 text-xs font-bold rounded-full transition-all text-on-surface/40 hover:text-on-surface">BOTH</button>
+</div>
+</div>
+</section>
+<!-- Step 2: Dynamic Blocks (Asymmetric Grid) -->
+<div class="grid grid-cols-12 gap-8 mb-20">
+<!-- Problem Block (Sharp, Bronze) -->
+<div class="col-span-12 md:col-span-7 bg-surface-container-high p-8 border border-primary-container/30 rounded-none">
+<div class="flex items-center justify-between mb-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">gavel</span>
+<h3 class="font-headline font-bold text-primary">Problem Architecture</h3>
+</div>
+<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-sm">AI Mapped</span>
+</div>
+<div class="space-y-4">
+<div class="p-4 bg-surface-container-lowest border-b border-primary-container/10">
+<label class="text-[10px] text-primary/60 font-bold uppercase block mb-1">Core Strain</label>
+<p class="text-on-surface outline-none focus:text-primary transition-colors" contenteditable="true">Fragmented legacy data silos preventing real-time cross-analysis between departments.</p>
+</div>
+<div class="p-4 bg-surface-container-lowest border-b border-primary-container/10">
+<label class="text-[10px] text-primary/60 font-bold uppercase block mb-1">Contextual Friction</label>
+<p class="text-on-surface outline-none focus:text-primary transition-colors" contenteditable="true">The friction is most acute during the quarterly audit cycles where 40% of time is spent on reconciliation.</p>
+</div>
+</div>
+</div>
+<!-- Suggestions Sidebar (Patina/Soft) -->
+<div class="col-span-12 md:col-span-5 space-y-6">
+<div class="bg-surface-variant/60 backdrop-blur-xl p-8 rounded-xl shadow-lg border border-secondary/20">
+<h3 class="font-headline text-secondary mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined">storm</span>
+                            Synthesis Chips
+                        </h3>
+<div class="flex flex-wrap gap-2">
+<span class="px-3 py-1.5 bg-secondary-container/20 text-secondary text-xs rounded-full border border-secondary/30 cursor-pointer hover:bg-secondary/20 transition-all">#Infrastructure</span>
+<span class="px-3 py-1.5 bg-secondary-container/20 text-secondary text-xs rounded-full border border-secondary/30 cursor-pointer hover:bg-secondary/20 transition-all">#EfficiencyLoss</span>
+<span class="px-3 py-1.5 bg-secondary-container/20 text-secondary text-xs rounded-full border border-secondary/30 cursor-pointer hover:bg-secondary/20 transition-all">#AuditRisk</span>
+<span class="px-3 py-1.5 bg-secondary-container/20 text-secondary text-xs rounded-full border border-secondary/30 cursor-pointer hover:bg-secondary/20 transition-all">#SystemicFragility</span>
+</div>
+</div>
+<div class="bg-surface-container-high p-8 rounded-xl border border-outline-variant/10">
+<h3 class="font-label text-xs font-bold text-on-surface/40 uppercase tracking-widest mb-4">Suggested Domain</h3>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-3 bg-surface rounded-lg cursor-pointer border border-transparent hover:border-secondary transition-all">
+<span class="text-sm">Operations &amp; Logistics</span>
+<span class="material-symbols-outlined text-sm text-secondary">add_circle</span>
+</div>
+<div class="flex items-center justify-between p-3 bg-surface rounded-lg cursor-pointer border border-transparent hover:border-secondary transition-all opacity-60">
+<span class="text-sm">Technical Debt</span>
+<span class="material-symbols-outlined text-sm">add_circle</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Preview Card Section -->
+<section class="border-t border-outline-variant/15 pt-12">
+<div class="flex items-center justify-between mb-8">
+<h2 class="font-headline text-2xl font-bold">Feed Archetype</h2>
+<span class="text-xs text-on-surface-variant italic">Previewing live oxidation state...</span>
+</div>
+<div class="relative">
+<!-- Preview Card -->
+<div class="bg-surface-container p-1 rounded-xl overflow-hidden shadow-2xl max-w-2xl mx-auto ring-1 ring-white/5">
+<div class="bg-surface-container-high p-8 flex flex-col md:flex-row gap-8 items-start">
+<div class="w-24 h-24 flex-shrink-0 bg-primary-container/20 border border-primary-container flex items-center justify-center rounded-none rotate-3">
+<span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings: 'FILL' 1;">gavel</span>
+</div>
+<div class="flex-1">
+<div class="flex items-center gap-3 mb-2">
+<span class="text-[10px] font-bold text-primary tracking-tighter uppercase">Observed 2m ago</span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="text-[10px] font-bold text-secondary tracking-tighter uppercase">In Synthesis</span>
+</div>
+<h4 class="font-headline text-xl font-bold mb-3 italic">"Fragmented legacy data silos..."</h4>
+<p class="text-sm text-on-surface-variant line-clamp-2 mb-6">Structural friction within the operational layer causing cascading delays during critical reconciliation phases.</p>
+<div class="flex items-center gap-4">
+<div class="flex -space-x-2">
+<div class="w-6 h-6 rounded-full bg-secondary-container/40 border border-surface flex items-center justify-center text-[10px]">AI</div>
+<div class="w-6 h-6 rounded-full bg-primary-container/40 border border-surface flex items-center justify-center text-[10px]">JD</div>
+</div>
+<span class="text-[10px] text-on-surface/40">2 Contributors analyzing relationship...</span>
+</div>
+</div>
+<div class="hidden md:block">
+<img alt="Abstract nodes" class="w-20 h-20 object-cover rounded-lg filter grayscale opacity-40" data-alt="abstract digital visualization of interconnected bronze shards and glowing patina gas clouds dark nocturnal lighting macro textures" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAsKhhNipvQ9Xk2LWUEtFXz--kuvypg15sFfIPhe_f3Bo_RUO4nxmQooi8kpaoEdpEM1WhvjC4j-VF9_5cT_HGeb7ykeHv2NJ6Mq1TXEzthCQnpUt1QwV9eQVogWNpU4XCmcnCz3GVlXiNtTEJESnd6XDYAIqLXqQ9hFWcHWb_uHQKePpuVItAuXcY-AgC0OX3ZVTxwwb7bla5NoA_2Kq598Mgqoa9lcjCB3E5KGy7jrpcpWUAo9VpaxMlG93Z4EpeSTB0FxOEWUZVO"/>
+</div>
+</div>
+</div>
+<!-- Subtle Map Context floating near the preview -->
+<div class="absolute -right-8 -top-8 hidden xl:block w-48 h-48 rounded-full border border-secondary/20 p-2 overflow-hidden bg-surface rotate-12 shadow-inner">
+<img alt="Location Context" class="w-full h-full object-cover opacity-60" data-alt="stylized dark abstract topographic map with glowing cyan veins and bronze markers no labels minimalist editorial style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBtN4OhHIJ5CghEuXc7qqmy_7hXMLie9uyMlO0EsnL-fH2bXUCTrgX7dEKv7Wr3y9TROzbELpFphEqR8pCqK3EoK1I7r7Xstt3Yj4gUrVTdsnSZzrokCSdKTeacJx08WptaNc-JaxrsHKggk_BKw_4XXean_JYR-KTw2yr7uMhgPUGIkGZGiuIsh6FZ8ALiPDytlPtJhkp7SHz_Xpzzb7xbZfX0To5806PeCJtc9ynYX0b5tsy-9gcl6bsRmTvuJd5xFuXjIURCNf7d"/>
+</div>
+</div>
+<div class="mt-12 flex justify-center">
+<button class="flex items-center gap-3 px-12 py-4 bg-primary-container text-on-primary-container font-bold rounded-sm hover:scale-105 active:scale-95 transition-all shadow-lg group">
+                        Commit to Archive
+                        <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+</section>
+</div>
+</main>
+<!-- FAB (Suppressed based on screen context - technically this is the detail/create page, but keeping a 'Capture' option for flow) -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-secondary text-on-secondary rounded-full shadow-2xl flex items-center justify-center group transition-all hover:w-44 overflow-hidden md:hidden">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span>
+<span class="ml-2 whitespace-nowrap opacity-0 group-hover:opacity-100 font-bold transition-opacity text-sm">Add Detail</span>
+</button>
+</body></html>

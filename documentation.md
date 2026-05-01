@@ -199,12 +199,11 @@
 - POST /solution - submit solution
 
 12. Development Roadmap
-1. Core CRUD: submit, store, display
-2. AI validation & ?convergence? layer
-3. reddit scraping pipeline
-4. matrix ui & gap scoring
-5. solutions layer
-6. PWA deployment on Vercel
+1. Environment & scaffolding - node/express setup, folder structure, dependencies, routes skeleton
+2. AI validation & convergence layer - case operation via API + AI validation layer
+3. reddit scraping - pull real complaints from subreddits
+4. case lifecycle - case submission, claim case, propose solutions, mark solved
+5. UI integration - wire frontend (case_submission, dossier, matrix, index, profile) to API endpoints
 
 13. limitations and expansion plans
 - more data sources, creative industry users, mobile app
