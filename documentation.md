@@ -210,14 +210,3 @@
 
 14. glossary
 - define key terms: pain score, gap score, convergence, problem intelligence
-
-  
-
-
-
-
-
-
-
-
-
