@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Register</title>
+  <link href="./output.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body>
+  <h2>Register</h2>
+  <input id="signup-email" type="email" placeholder="Email">
+  <input id="signup-password" type="password" placeholder="Password">
+  <button id="signup-btn">Sign Up</button>
+  <div id="message-box"></div>
+
+  <button id="goLogInBtn">Go to Login</button> 
+  <!-- ✅ Separate script for register -->
+
+  <div class="bg-red-500 text-white p-4">
+    <p>This is a red alert box!</p>
+  </div>
+  <script type="module" src="/frontend/register.js" defer></script>
+</body>
+</html>

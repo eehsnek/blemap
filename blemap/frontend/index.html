@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login</title>
+  <link href="../frontend/output.css" rel="stylesheet">
+  <link rel="icon" href="data:,"> <!-- Prevent default favicon request -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body>
+  <h2>Login</h2>
+  <input id="signin-email" type="email" placeholder="Email">
+  <input id="signin-password" type="password" placeholder="Password">
+  <button id="signin-btn">Sign In</button>
+  <div id="message-box"></div>
+
+  <button id="goRegisterBtn">Go to Register</button>
+  <div class="bg-red-500 text-white p-4">
+    <p>This is a red alert box!</p>
+  </div>
+
+  <!-- ✅ Separate script for login -->
+  <script type="module" src="/frontend/login.js" defer></script>
+</body>
+</html>

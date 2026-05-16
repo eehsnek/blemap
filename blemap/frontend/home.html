@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Home Page</title>
+  <link href="output.css" rel="stylesheet">
+  <script type="module" src="/frontend/home.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body>
+  <h1>Welcome to the Home Page!</h1>
+
+  <!-- Logout -->
+  <button id="signout-btn">Sign Out</button>
+  <div id="message-box"></div>
+  <div id="auth-status">Not logged in</div>
+  <div id="profile"></div>
+
+  <h2>Pre-Case</h2>
+  <ul id="reddit-feed"></ul>
+
+  <h2>Cases</h2>
+  <div id="cases"></div>
+
+  <div class="bg-red-500 text-white p-4">
+    <p>This is a red alert box!</p>
+  </div>
+</body>
+</html>
