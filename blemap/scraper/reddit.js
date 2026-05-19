@@ -14,6 +14,7 @@ const app = express();
 
 // ✅ Allow requests from any origin (including localhost:3000)
 app.use(cors());
+app.use(express.json());
 
 app.get("/api/reddit", async (req, res) => {
   try {
@@ -95,6 +96,28 @@ app.get("/api/get", async (req, res) => {
   res.json({ posts: data });
 });
 
+app.get("/api/cases/:id", async (req, res) => {
+  try {
+    const caseId = req.params.id;
+
+    const { data, error } = await supabase
+      .from("cases")
+      .select("*")
+      .eq("id", caseId)
+      .single();
+
+    if (error) {
+      console.error("Error fetching case:", error);
+      return res.status(404).json({ error: error.message });
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error("Backend error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/aggregate", async (req, res) => {
   try {
     // 1. Fetch precase rows
@@ -169,30 +192,241 @@ app.get("/api/cases", async (req, res) => {
   }
 });
 
-app.listen(4000, () => console.log("Backend running on http://localhost:4000"));
+app.get("/api/cases/:id", async (req, res) => {
+  const { id } = req.params;
 
-/*
-app.get("/api/test", async (req, res) => {
-  try {
-    const response = await fetch("https://www.reddit.com/r/Law.json", {
-      headers: { "User-Agent": "MyScraper/1.0.0" }
+  if (!id || id === "null") {
+    return res.status(400).json({
+      error: "Invalid case id"
     });
+  }
 
-    const json = await response.json();
-    const posts = json.data.children.map(c => ({
-      title: c.data.title,
-      permalink: c.data.permalink,
-      subreddit: c.data.subreddit
-    }));
+  const numericId = Number(id);
 
-    const { data, error } = await supabase.from("pre_case").insert(posts);
-    if (error) throw error;
+  if (isNaN(numericId)) {
+    return res.status(400).json({
+      error: "ID must be a number"
+    });
+  }
 
-    res.json({ inserted: data });
+  const { data, error } = await supabase
+    .from("cases")
+    .select("*")
+    .eq("id", numericId)
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error });
+  }
+
+  res.json(data);
+});
+
+app.post("/api/cases/:id/claim", async (req, res) => {
+  // insert into case_claims, update cases.claimed_by
+  const caseId = req.params.id;
+  const userId = req.body.user_id;
+
+  console.log("Claim route hit");
+  console.log("params:", req.params);
+  console.log("body:", req.body);
+  console.log("params object: ", req.params);
+
+  try {
+    // Insert into case_claims
+    const { error: insertError } = await supabase
+      .from("case_claims")
+      .insert({
+        case_id: caseId,
+        user_id: user,
+        claimed_at: new Date()
+      });
+
+    if (insertError) throw insertError;
+
+    // Update cases snapshot
+    await supabase.from("cases")
+      .update({
+        claimed_by: user,
+        claimed_at: new Date(),
+        lifecycle_state: "orange"
+      })
+      .eq("id", caseId);
+
+    res.json({ message: "Case claimed successfully" });
   } catch (err) {
-    console.error("Backend error:", err);
     res.status(500).json({ error: err.message });
   }
 });
-// where is the console.log?
-*/
+
+app.post("/api/cases/:id/unclaim", async (req, res) => {
+  // nullify claimed_by, revert lifecycle_state
+  const caseId = req.params.id;
+  const userId = req.body.user_id;
+
+  try {
+    // Update case_claims history
+    await supabase.from("case_claims")
+      .update({ unclaimed_at: new Date() })
+      .eq("case_id", caseId)
+      .eq("user_id", userId);
+
+    // Reset snapshot
+    await supabase.from("cases")
+      .update({
+        claimed_by: null,
+        claimed_at: null,
+        lifecycle_state: "grey"
+      })
+      .eq("id", caseId);
+
+    res.json({ message: "Case unclaimed successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/cases/:id/pain", async (req, res) => {
+  // insert into case_pains, increment pain_count
+  const caseId = req.params.id;
+  const userId = req.body.user_id;
+
+  try {
+    await supabase.from("case_pains").insert({
+      case_id: caseId,
+      user_id: userId,
+      pained_at: new Date()
+    });
+
+    await supabase.from("cases")
+      .update({ pain_count: supabase.rpc("increment_pain_count", { case_id: caseId }) })
+      .eq("id", caseId);
+
+    res.json({ message: "Pain recorded successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/cases/:id/solve", async (req, res) => {
+  // insert into case_solves, increment solve_count
+  const caseId = req.params.id;
+  const userId = req.body.user_id;
+  const { solve_text } = req.body;
+
+  try {
+    await supabase.from("case_solves").insert({
+      case_id: caseId,
+      user_id: userId,
+      solve_text,
+      created_at: new Date()
+    });
+
+    await supabase.from("cases")
+      .update({ solve_count: supabase.rpc("increment_solve_count", { case_id: caseId }) })
+      .eq("id", caseId);
+
+    res.json({ message: "Solve submitted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/solves/:id/accept", async (req, res) => {
+  const solveId = req.params.id;
+  const userId = req.body.user_id; // who accepted
+
+  try {
+    // Mark solve as accepted
+    const { data: solve } = await supabase.from("case_solves")
+      .update({ accepted: true })
+      .eq("id", solveId)
+      .select()
+      .single();
+
+    // Update parent case
+    await supabase.from("cases")
+      .update({
+        resolved: true,
+        resolved_by: userId,
+        resolved_at: new Date(),
+        lifecycle_state: "green"
+      })
+      .eq("id", solve.case_id);
+
+    res.json({ message: "Solve accepted and case resolved" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/submit", async (req, res) => {
+  const { text } = req.body;
+
+  try {
+    let caseId = null;
+
+    if (text.toLowerCase().includes("eviction") || 
+        text.toLowerCase().includes("neighbor") ||
+        text.toLowerCase().includes("property")) {
+      caseId = 1; // Housing & Property Issues
+    } else if (text.toLowerCase().includes("contract") ||
+               text.toLowerCase().includes("supplier") ||
+               text.toLowerCase().includes("consumer") ||
+               text.toLowerCase().includes("fees")) {
+      caseId = 2; // Business & Consumer Face Problems
+    } else if (text.toLowerCase().includes("employee") ||
+               text.toLowerCase().includes("workplace")) {
+      caseId = 3; // Employment Issues
+    }
+
+    if (caseId) {
+      const { data: existingCase, error: selectError } = await supabase
+        .from("cases")
+        .select("*")
+        .eq("id", caseId)
+        .single();
+
+      if (selectError) throw selectError;
+
+      const updatedSummary = existingCase.summary + " | " + text;
+
+      const { data: updatedCase, error: updateError } = await supabase
+        .from("cases")
+        .update({ summary: updatedSummary })
+        .eq("id", caseId)
+        .select();
+
+      if (updateError) throw updateError;
+      res.json({ message: "This post matched with an existing case", case: updatedCase, matched: true});
+    } else {
+      const newCase = {
+        topic: "New User Submitted Case",
+        summary: text,
+        pain_count: 0,
+        solve_count: 0,
+        claimed_by: null,
+        lifecycle_state: "grey",
+        permalinks: [],
+        subreddits: [],
+        solves: [],
+        ai_status: "user_submitted"
+      };
+
+      const { data: insertedCase, error } = await supabase
+        .from("cases")
+        .insert(newCase)
+        .select();
+
+      if (error) throw error;
+      
+      res.json({ case: insertedCase[0], message: "No existing case matched, but post was received", matched: false });
+    }
+  } catch (err) {
+    console.error("Submit error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.listen(4000, () => console.log("Backend running on http://localhost:4000"));

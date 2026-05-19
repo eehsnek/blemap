@@ -1,0 +1,54 @@
+BleMap Context
+We are building BleMap, a problem-solution intelligence platform. The backend is Supabase. The frontend is vanilla JS with Vite. You may change the tech stack. Don't touch the Supabase because it is currently used by my partner. You may use native SQL.
+
+You don't need to make the system complicated as long as the minimum viable product works. The goal is to have a simple program that lets the team understand the underlying architecture first before the robust features.
+
+-
+
+5 Core Features
+(1) The ETL-style flow (The selling point)
+In extract, you gather posts. Currently, the application are dummy posts, but in the future, it is real live data from Reddit.
+
+Note: The current application only stores 5 dummy posts and every refresh doesn't insert another one.
+
+In transform, posts run through AI or rule-based checks such as semantic grouping. Posts are grouped together into Case as a form of validation. Currently, the application is a simple semantic grouping, but in the future, Gemini API will be used.
+
+In load, Cases are displayed in the dossier/feed similar to a reddit/news post.
+
+Note: The ETL flow is currently the only feature being applied into the program. The rest of the features are still in development from my partner.
+
+
+(2) Case Lifecycle and Case
+Each case has two modes 'problem (orange)', and 'solution (patina green)'.
+
+As well as 'unclaim', 'claim', 'solve', and 'pain'.
+Unclaim and claim helps users better access the cases while solve and pain are the user interactions.
+
+Pain is the BleMap equivalent to a Love/Like while solve is the BleMap equivalent to a comment.
+
+Based on the current setup, the cases.sql must insert claim, unclaim, solve, and pain columns
+
+Each case can have the 'Case Card' and when the user clicked, it shows more details such as posts and pain, solve metrics. This is called 'Case Details'.
+
+
+(3) Post Submission & Semantic Convergence
+For the current demonstration, type a 'safe word' and the system leads to a match of an existing case to prevent duplication. (You can use dummy input)
+
+If no matching words, it creates a new case (typical post submission).
+
+
+(4) Profile
+
+Create users.sql
+
+Display claimed cases, posted cases, and proposed solutions as reports
+
+
+(5) Case Matrix
+display each case in a map with the solution as a x-axis, pain as a y-axis, and unclaim-claim as the size of the case's circle. The bigger the claim number, the bigger the circle.
+
+
+(6) Team Creation
+Users can create a team for better coordination.
+Add or remove members
+Display reporting

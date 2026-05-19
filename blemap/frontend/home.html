@@ -2,27 +2,31 @@
 <html>
 <head>
   <title>Home Page</title>
-  <link href="output.css" rel="stylesheet">
-  <script type="module" src="/frontend/home.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
 <body>
-  <h1>Welcome to the Home Page!</h1>
+  <body class="bg-gray-100 flex">
+    <nav class="bg-blue-600 text-white w-48 min-h-screen p-4 flex flex-col space-y-4">
+      <a href="home.html" class="font-bold hover:text-gray-200">Home</a>
+      <a href="input.html" class="hover:text-gray-200">New Case</a>
+      <a href="profile.html" class="hover:text-gray-200">Profile</a>
+      <a href="about.html" class="hover:text-gray-200">About</a>
+    </nav>
+    <div class="flex-1 p-6">
+      <button id="signout-btn">Sign Out</button>
+      <div id="message-box"></div>
+      <div id="auth-status">Not logged in</div>
+      <div id="profile"></div>
 
+      <h2>Cases</h2>
+      <div id="cases"></div>
+
+      <h2>Pre-Case</h2>
+      <ul id="reddit-feed"></ul>
+    </div>
+  </body>
+  
   <!-- Logout -->
-  <button id="signout-btn">Sign Out</button>
-  <div id="message-box"></div>
-  <div id="auth-status">Not logged in</div>
-  <div id="profile"></div>
-
-  <h2>Pre-Case</h2>
-  <ul id="reddit-feed"></ul>
-
-  <h2>Cases</h2>
-  <div id="cases"></div>
-
-  <div class="bg-red-500 text-white p-4">
-    <p>This is a red alert box!</p>
-  </div>
+  <script type="module" src="home.js" defer></script>
 </body>
 </html>

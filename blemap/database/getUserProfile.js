@@ -8,9 +8,9 @@ export async function getCurrentUserProfile() {
   if (!user) return null
 
   // Query the profiles table, joining with roles
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('username, role_id, roles(name)')
+  const { data: users, error: profileError } = await supabase
+    .from('users')
+    .select('username')
     .eq('id', user.id)
     .single()
 
@@ -19,8 +19,8 @@ export async function getCurrentUserProfile() {
 }
 
 const { data, error } = await supabase
-  .from('profiles')
-  .select('username, role_id, roles(name)')
+  .from('users')
+  .select('username')
   .eq('id', '88ec5a7b-9733-49cb-ae42-65c49aa445b1')
 
 if (error) {

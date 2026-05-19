@@ -2,6 +2,8 @@ import { supabase } from '../database/supabase.js'
 import { signOut } from '../database/signOut.js'
 import { getCurrentUserProfile } from '../database/getUserProfile.js'
 
+let hasLoaded = false;
+
 async function showAuthStatus() {
   const { data: { user } } = await supabase.auth.getUser()
   const statusBox = document.getElementById('auth-status')
@@ -39,7 +41,94 @@ async function loadPreCases() {
     .join("");
 }
 
-loadPreCases();
+async function toggleClaim(button, caseId) {
+  // Check current state
+  const isClaimed = button.dataset.claimed === "true";
+
+  if (isClaimed) {
+    // Unclaim action
+    console.log(`Case ${caseId} unclaimed (dummy).`);
+    alert(`Case ${caseId} has been unclaimed!`);
+
+    // Update button text/state
+    button.innerText = "Claim";
+    button.dataset.claimed = "false";
+  } else {
+    // Claim action
+    console.log(`Case ${caseId} claimed (dummy).`);
+    alert(`Case ${caseId} has been claimed!`);
+
+    // Update button text/state
+    button.innerText = "Unclaim";
+    button.dataset.claimed = "true";
+  }
+
+  // Optionally refresh your case list
+  // loadCases();
+}
+
+/*
+async function claimCase(caseId) {
+  try {
+    // Get the current user from Supabase Auth
+    const { data: { user }, error } = await supabase.auth.getUser();
+
+    if (error || !user) {
+      alert("You must be logged in to claim a case.");
+      return;
+    }
+
+    const res = await fetch(`http://localhost:4000/api/cases/${caseId}/claim`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: user.id }) // replace with actual UUID
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to claim case ${caseId}: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    console.log("Claimed:", data);
+
+    loadCases();
+  } catch (err) {
+    console.error("Error claiming case:", err);
+    alert("Could not claim case. Please try again.");
+  }
+}*/
+
+async function togglePain(button, caseId) {
+  const hasPain = button.dataset.pained === "true";
+
+  if (hasPain) {
+    // Remove pain
+    console.log(`Pain removed for case ${caseId} (dummy).`);
+    button.innerText = "Pain";
+    button.dataset.pained = "false";
+  } else {
+    // Add pain
+    console.log(`Pain added for case ${caseId} (dummy).`);
+    button.innerText = "Unpain";
+    button.dataset.pained = "true";
+  }
+
+  // Optionally refresh case list
+  // loadCases();
+}
+
+
+async function addSolve(caseId) {
+  const solveText = prompt("Enter your solution:");
+  const res = await fetch(`/api/cases/${caseId}/solve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: "your-user-uuid", solve_text: solveText })
+  });
+  const data = await res.json();
+  console.log("Solve submitted:", data);
+  loadCases();
+}
 
 async function loadCases() {
   const response = await fetch("http://localhost:4000/api/cases");
@@ -48,61 +137,58 @@ async function loadCases() {
   const container = document.getElementById("cases");
 
   if (!cases || cases.length === 0) {
-      container.innerHTML = `<p>No cases available yet.</p>`;
-      return;
-    }
+    container.innerHTML = `<p>No cases available yet.</p>`;
+    return;
+  }
 
-  container.innerHTML = cases.map(c => `
-    <div class="border rounded p-4 mb-4">
+  // Clear container before re-rendering
+  container.innerHTML = "";
+
+  cases.forEach(c => {
+    // Create card element
+    const card = document.createElement("div");
+    card.className = "bg-white shadow rounded p-4";
+
+    // Render card
+    card.innerHTML = `
       <h2 class="text-xl font-bold">${c.topic}</h2>
       <p class="text-gray-700">${c.summary}</p>
       <p class="text-sm text-gray-500">Subreddits: ${c.subreddits.join(", ")}</p>
-      <ul class="list-disc ml-6 mt-2">
-        ${c.permalinks.map(link => `<li><a href="${link}" target="_blank" class="text-blue-600 underline">${link}</a></li>`).join("")}
-      </ul>
-    </div>
-  `).join("");
+
+      <div class="flex space-x-2 mt-3 action-buttons">
+        <button class="claim bg-orange-500 text-white px-3 py-1 rounded">Claim</button>
+        <button class="pain bg-red-500 text-white px-3 py-1 rounded">Pain</button>
+        <button class="solve bg-green-500 text-white px-3 py-1 rounded">Solve</button>
+      </div>
+    `;
+
+    // Card click → go to details
+    card.addEventListener("click", () => {
+      window.location.href = `http://localhost:3000/frontend/caseDetail?id=${c.id}`;
+    });
+
+    // Prevent the action-buttons area from triggering card redirect
+    card.querySelector(".action-buttons").addEventListener("click", e => {
+      e.stopPropagation(); // ✅ stops the card click
+    });
+
+    // Attach event listeners
+    card.querySelector(".claim").addEventListener("click", function () {
+      toggleClaim(this, c.id);
+    });
+    card.querySelector(".pain").addEventListener("click", function () {
+      togglePain(this, c.id);
+    });
+    card.querySelector(".solve").addEventListener("click", () => addSolve(c.id));
+
+    // Append card to container
+    container.appendChild(card);
+  });
 }
 
-loadCases();
-
-/* async function loadRedditPosts() {
-  try {
-    const response = await fetch("http://localhost:4000/api/reddit");
-    const json = await response.json();
-
-    // Reddit JSON structure: json.data.children -> array of posts
-    if (!json.data || !json.data.children) {
-      document.getElementById("reddit-feed").innerHTML = "<li>No posts found</li>";
-      return;
-    }
-
-    const posts = json.data.children.map(child => child.data);
-
-    document.getElementById("reddit-feed").innerHTML = posts
-      .slice(0, 5) // show top 5
-      .map(post => `
-        <li>
-          <a href="https://reddit.com${post.permalink}" target="_blank">
-            ${post.title}
-          </a>
-        </li>
-      `)
-      .join("");
-  } catch (err) {
-    console.error("Error fetching Reddit:", err);
-    document.getElementById("reddit-feed").innerHTML = "<li>Error loading posts</li>";
-  }
+async function initHome() {
+  await loadPreCases();
+  await loadCases();
 }
 
-loadRedditPosts();*/
-
-/*
-document.addEventListener("DOMContentLoaded", () => {
-  // For debugging raw intake
-  // loadPreCase();
-
-  // For showing aggregated cases
-  loadCase();
-});
-*/
+initHome();
