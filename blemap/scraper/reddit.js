@@ -364,25 +364,48 @@ app.post("/api/solves/:id/accept", async (req, res) => {
 app.post("/api/submit", async (req, res) => {
   const { text } = req.body;
 
+  // 2. Protect against empty input
+  if (!text || text.trim() === "") {
+    return res.status(400).json({
+      error: "Input required"
+    });
+  }
+
+  const lowerText = text.toLowerCase();
+
   try {
     let caseId = null;
 
-    if (text.toLowerCase().includes("eviction") || 
-        text.toLowerCase().includes("neighbor") ||
-        text.toLowerCase().includes("property")) {
+    // Mock semantic grouping (temporary AI simulation)
+    if (
+      lowerText.includes("eviction") ||
+      lowerText.includes("neighbor") ||
+      lowerText.includes("property")
+    ) {
       caseId = 1; // Housing & Property Issues
-    } else if (text.toLowerCase().includes("contract") ||
-               text.toLowerCase().includes("supplier") ||
-               text.toLowerCase().includes("consumer") ||
-               text.toLowerCase().includes("fees")) {
-      caseId = 2; // Business & Consumer Face Problems
-    } else if (text.toLowerCase().includes("employee") ||
-               text.toLowerCase().includes("workplace")) {
+
+    } else if (
+      lowerText.includes("contract") ||
+      lowerText.includes("supplier") ||
+      lowerText.includes("consumer") ||
+      lowerText.includes("fees")
+    ) {
+      caseId = 2; // Business & Consumer Problems
+
+    } else if (
+      lowerText.includes("employee") ||
+      lowerText.includes("workplace")
+    ) {
       caseId = 3; // Employment Issues
     }
 
+    // Existing Case matched
     if (caseId) {
-      const { data: existingCase, error: selectError } = await supabase
+
+      const {
+        data: existingCase,
+        error: selectError
+      } = await supabase
         .from("cases")
         .select("*")
         .eq("id", caseId)
@@ -390,17 +413,35 @@ app.post("/api/submit", async (req, res) => {
 
       if (selectError) throw selectError;
 
-      const updatedSummary = existingCase.summary + " | " + text;
+      // 3. Safer summary merge
+      const updatedSummary =
+        (existingCase.summary || "") +
+        " | " +
+        text;
 
-      const { data: updatedCase, error: updateError } = await supabase
+      const {
+        data: updatedCase,
+        error: updateError
+      } = await supabase
         .from("cases")
-        .update({ summary: updatedSummary })
+        .update({
+          summary: updatedSummary
+        })
         .eq("id", caseId)
-        .select();
+        .select()
+        .single();
 
       if (updateError) throw updateError;
-      res.json({ message: "This post matched with an existing case", case: updatedCase, matched: true});
+
+      res.json({
+        message:
+          "This post matched with an existing case",
+        case: updatedCase,
+        matched: true
+      });
+
     } else {
+
       const newCase = {
         topic: "New User Submitted Case",
         summary: text,
@@ -410,22 +451,35 @@ app.post("/api/submit", async (req, res) => {
         lifecycle_state: "grey",
         permalinks: [],
         subreddits: [],
-        solves: [],
         ai_status: "user_submitted"
       };
 
-      const { data: insertedCase, error } = await supabase
-        .from("cases")
-        .insert(newCase)
-        .select();
+      console.log("ABOUT TO INSERT:", newCase);
 
-      if (error) throw error;
-      
-      res.json({ case: insertedCase[0], message: "No existing case matched, but post was received", matched: false });
+      const { data, error } = await supabase
+        .from("cases")
+        .insert([newCase])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("INSERT ERROR DETAILS:", error);
+        throw error;
+      }
+
+      return res.json({
+        case: data,
+        matched: false,
+        message: "New case created"
+      });
     }
+
   } catch (err) {
     console.error("Submit error:", err);
-    res.status(500).json({ error: err.message });
+
+    res.status(500).json({
+      error: err.message
+    });
   }
 });
 
