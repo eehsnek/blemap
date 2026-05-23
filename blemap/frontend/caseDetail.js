@@ -1,5 +1,7 @@
 import { supabase } from '../database/supabase.js'
 
+const { data: { user } } = await supabase.auth.getUser();
+
 const params = new URLSearchParams(window.location.search);
 let caseId = params.get("id");
 
@@ -29,6 +31,9 @@ async function loadCaseDetails(caseId) {
   try {
     const response = await fetch(`http://localhost:4000/api/cases/${caseId}`);
     const c = await response.json();
+
+    console.log("Case details response:", c);
+    console.log("Solutions from backend:", c.solves);
 
     const container = document.getElementById("case-details");
     container.innerHTML = `
@@ -85,15 +90,54 @@ async function loadCaseDetails(caseId) {
               `)
               .join("")}
           </ul>
-          <textarea class="w-full border rounded p-2 mt-2" placeholder="Propose a solution..."></textarea>
-          <button class="mt-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Submit Solution</button>
+          <textarea id="solution-text" class="w-full border rounded p-2 mt-2" placeholder="Propose a solution..."></textarea>
+          <button id="submit-solution" class="mt-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
+            Submit Solution
+          </button>
         </div>
       </div>
     `;
+    document.getElementById("submit-solution").addEventListener("click", () => {
+      submitSolution(caseId);
+    });
   } catch (err) {
     console.error("Error loading case details:", err);
   }
 }
 
 loadCaseDetails(caseId);
+
+async function submitSolution(caseId) {
+  const textarea = document.getElementById("solution-text");
+  const solveText = textarea.value.trim();
+
+  if (!solveText) {
+    alert("Please enter a solution first.");
+    return;
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    alert("You must be logged in to submit a solution.");
+    return;
+  }
+
+  const res = await fetch(`http://localhost:4000/api/cases/${caseId}/solve`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      user_id: user.id,
+      solve_text: solveText
+    })
+  });
+
+  const data = await res.json();
+  console.log("Submit solution response:", data);
+
+  textarea.value = "";
+  await loadCaseDetails(caseId);
+}
 

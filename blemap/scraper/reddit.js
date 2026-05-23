@@ -100,18 +100,32 @@ app.get("/api/cases/:id", async (req, res) => {
   try {
     const caseId = req.params.id;
 
-    const { data, error } = await supabase
+    const { data: caseData, error: caseError } = await supabase
       .from("cases")
       .select("*")
       .eq("id", caseId)
       .single();
 
-    if (error) {
-      console.error("Error fetching case:", error);
-      return res.status(404).json({ error: error.message });
+    if (caseError) {
+      console.error("Error fetching case:", caseError);
+      return res.status(404).json({ error: caseError.message });
     }
 
-    res.json(data);
+    const { data: solvesData, error: solvesError } = await supabase
+      .from("case_solves")
+      .select("*")
+      .eq("case_id", caseId)
+      .order("created_at", { ascending: false });
+
+    if (solvesError) {
+      console.error("Error fetching solves:", solvesError);
+      return res.status(500).json({ error: solvesError.message });
+    }
+
+    res.json({
+      ...caseData,
+      solves: solvesData
+    });
   } catch (err) {
     console.error("Backend error:", err);
     res.status(500).json({ error: err.message });
@@ -192,98 +206,73 @@ app.get("/api/cases", async (req, res) => {
   }
 });
 
-app.get("/api/cases/:id", async (req, res) => {
-  const { id } = req.params;
-
-  if (!id || id === "null") {
-    return res.status(400).json({
-      error: "Invalid case id"
-    });
-  }
-
-  const numericId = Number(id);
-
-  if (isNaN(numericId)) {
-    return res.status(400).json({
-      error: "ID must be a number"
-    });
-  }
-
-  const { data, error } = await supabase
-    .from("cases")
-    .select("*")
-    .eq("id", numericId)
-    .single();
-
-  if (error) {
-    console.error(error);
-    return res.status(500).json({ error });
-  }
-
-  res.json(data);
-});
-
-app.post("/api/cases/:id/claim", async (req, res) => {
-  // insert into case_claims, update cases.claimed_by
+app.post("/api/cases/:id/toggle-claim", async (req, res) => {
   const caseId = req.params.id;
   const userId = req.body.user_id;
 
-  console.log("Claim route hit");
-  console.log("params:", req.params);
-  console.log("body:", req.body);
-  console.log("params object: ", req.params);
+  if (!userId) {
+    return res.status(400).json({ error: "user_id is required" });
+  }
 
   try {
-    // Insert into case_claims
-    const { error: insertError } = await supabase
-      .from("case_claims")
-      .insert({
-        case_id: caseId,
-        user_id: user,
-        claimed_at: new Date()
+    // 1. get current state
+    const { data: caseData, error: fetchError } = await supabase
+      .from("cases")
+      .select("claimed_by")
+      .eq("id", caseId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    // 2. TOGGLE LOGIC
+    const isClaimed = caseData.claimed_by !== null;
+
+    if (!isClaimed) {
+      // CLAIM
+      const { data: currentCase } = await supabase
+        .from("cases")
+        .select("claim_count")
+        .eq("id", caseId)
+        .single();
+
+      const { error: updateError } = await supabase
+        .from("cases")
+        .update({
+          claimed_by: userId,
+          claimed_at: new Date(),
+          lifecycle_state: "orange"
+        })
+        .eq("id", caseId);
+
+      if (updateError) throw updateError;
+
+      return res.json({
+        message: "Case claimed",
+        state: "claimed"
       });
 
-    if (insertError) throw insertError;
+    } else {
+      // UNCLAIM
+      const { error: updateError } = await supabase
+        .from("cases")
+        .update({
+          claimed_by: null,
+          claimed_at: null,
+          lifecycle_state: "grey"
+        })
+        .eq("id", caseId);
 
-    // Update cases snapshot
-    await supabase.from("cases")
-      .update({
-        claimed_by: user,
-        claimed_at: new Date(),
-        lifecycle_state: "orange"
-      })
-      .eq("id", caseId);
+      if (updateError) throw updateError;
 
-    res.json({ message: "Case claimed successfully" });
+      return res.json({
+        message: "Case unclaimed",
+        state: "unclaimed"
+      });
+    }
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post("/api/cases/:id/unclaim", async (req, res) => {
-  // nullify claimed_by, revert lifecycle_state
-  const caseId = req.params.id;
-  const userId = req.body.user_id;
-
-  try {
-    // Update case_claims history
-    await supabase.from("case_claims")
-      .update({ unclaimed_at: new Date() })
-      .eq("case_id", caseId)
-      .eq("user_id", userId);
-
-    // Reset snapshot
-    await supabase.from("cases")
-      .update({
-        claimed_by: null,
-        claimed_at: null,
-        lifecycle_state: "grey"
-      })
-      .eq("id", caseId);
-
-    res.json({ message: "Case unclaimed successfully" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Toggle claim error:", err);
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -300,7 +289,7 @@ app.post("/api/cases/:id/pain", async (req, res) => {
     });
 
     await supabase.from("cases")
-      .update({ pain_count: supabase.rpc("increment_pain_count", { case_id: caseId }) })
+      .update({ pain_count: supabase.rpc("increment_pain_count", { case_id: caseId }) }) // error
       .eq("id", caseId);
 
     res.json({ message: "Pain recorded successfully" });
@@ -324,7 +313,7 @@ app.post("/api/cases/:id/solve", async (req, res) => {
     });
 
     await supabase.from("cases")
-      .update({ solve_count: supabase.rpc("increment_solve_count", { case_id: caseId }) })
+      .update({ solve_count: supabase.rpc("increment_solve_count", { case_id: caseId }) }) // error
       .eq("id", caseId);
 
     res.json({ message: "Solve submitted successfully" });

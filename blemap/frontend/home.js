@@ -147,7 +147,14 @@ async function loadCases() {
   cases.forEach(c => {
     // Create card element
     const card = document.createElement("div");
-    card.className = "bg-white shadow rounded p-4";
+    card.className = `
+      shadow rounded p-4 transition
+      ${c.lifecycle_state === "orange"
+        ? "bg-orange-200 border border-orange-400"
+        : c.lifecycle_state === "grey"
+          ? "bg-white"
+          : "bg-white"}
+    `;
 
     // Render card
     card.innerHTML = `
@@ -156,7 +163,9 @@ async function loadCases() {
       <p class="text-sm text-gray-500">Subreddits: ${c.subreddits.join(", ")}</p>
 
       <div class="flex space-x-2 mt-3 action-buttons">
-        <button class="claim bg-orange-500 text-white px-3 py-1 rounded">Claim</button>
+        <button class="claim bg-orange-500 text-white px-3 py-1 rounded">
+          ${c.claimed_by ? "Unclaim" : "Claim"}
+        </button>
         <button class="pain bg-red-500 text-white px-3 py-1 rounded">Pain</button>
         <button class="solve bg-green-500 text-white px-3 py-1 rounded">Solve</button>
       </div>
@@ -172,10 +181,58 @@ async function loadCases() {
       e.stopPropagation(); // ✅ stops the card click
     });
 
-    // Attach event listeners
-    card.querySelector(".claim").addEventListener("click", function () {
-      toggleClaim(this, c.id);
+    card.querySelector(".claim").addEventListener("click", async function (e) {
+      e.stopPropagation();
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        alert("You must be logged in.");
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `http://localhost:4000/api/cases/${c.id}/toggle-claim`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              user_id: user.id
+            })
+          }
+        );
+
+        if (!res.ok) {
+          throw new Error(`Failed: ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        console.log("Toggle claim result:", data);
+
+        // ✅ Toggle button text
+        this.textContent =
+          data.state === "claimed"
+            ? "Unclaim"
+            : "Claim";
+
+        // optional color toggle
+        this.className =
+          data.state === "claimed"
+            ? "claim bg-gray-500 text-white px-3 py-1 rounded"
+            : "claim bg-orange-500 text-white px-3 py-1 rounded";
+
+        // refresh case feed if needed
+        loadCases();
+
+      } catch (err) {
+        console.error("Claim toggle error:", err);
+      }
     });
+
     card.querySelector(".pain").addEventListener("click", function () {
       togglePain(this, c.id);
     });
