@@ -148,26 +148,26 @@ async function loadCases() {
     // Create card element
     const card = document.createElement("div");
     card.className = `
-      shadow rounded p-4 transition
-      ${c.lifecycle_state === "orange"
-        ? "bg-orange-200 border border-orange-400"
-        : c.lifecycle_state === "grey"
-          ? "bg-white"
-          : "bg-white"}
+      rounded p-4 transition text-white
+      ${c.lifecycle_state === "green"
+        ? "bg-[#123832] border border-[#43e2d2]/50"
+        : c.lifecycle_state === "orange"
+          ? "bg-[#4a2f1f] border border-[#ffb779]/50"
+          : "bg-[#201a16] border border-[#534438]/40"}
     `;
 
     // Render card
     card.innerHTML = `
       <h2 class="text-xl font-bold">${c.topic}</h2>
-      <p class="text-gray-700">${c.summary}</p>
-      <p class="text-sm text-gray-500">Subreddits: ${c.subreddits.join(", ")}</p>
+      <p class="text-[#e5e2e1]/75">${c.summary}</p>
+      <p class="text-sm text-[#e5e2e1]/50">Subreddits: ${c.subreddits.join(", ")}</p>
 
       <div class="flex space-x-2 mt-3 action-buttons">
-        <button class="claim bg-orange-500 text-white px-3 py-1 rounded">
+        <button class="claim bg-[#cd7f32] text-[#13100d] font-semibold px-3 py-1 rounded">
           ${c.claimed_by ? "Unclaim" : "Claim"}
         </button>
-        <button class="pain bg-red-500 text-white px-3 py-1 rounded">Pain</button>
-        <button class="solve bg-green-500 text-white px-3 py-1 rounded">Solve</button>
+        <button class="pain bg-[#2a2a2a] text-[#ffb779] px-3 py-1 rounded">Pain</button>
+        <button class="solve bg-[#43e2d2] text-[#13100d] font-semibold px-3 py-1 rounded">Solve</button>
       </div>
     `;
 
@@ -222,8 +222,8 @@ async function loadCases() {
         // optional color toggle
         this.className =
           data.state === "claimed"
-            ? "claim bg-gray-500 text-white px-3 py-1 rounded"
-            : "claim bg-orange-500 text-white px-3 py-1 rounded";
+            ? "claim bg-[#2a2a2a] text-[#ffb779] px-3 py-1 rounded"
+            : "claim bg-[#cd7f32] text-[#13100d] font-semibold px-3 py-1 rounded";
 
         // refresh case feed if needed
         loadCases();

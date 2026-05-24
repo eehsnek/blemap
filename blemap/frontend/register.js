@@ -5,6 +5,7 @@ const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const signupBtn = document.getElementById('signup-btn');
+const goLogInBtn = document.getElementById('goLogInBtn');
 const messageBox = document.getElementById('message-box');
 
 if (signupBtn) {

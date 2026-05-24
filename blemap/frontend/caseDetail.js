@@ -36,6 +36,8 @@ async function loadCaseDetails(caseId) {
     console.log("Solutions from backend:", c.solves);
 
     const container = document.getElementById("case-details");
+    const canManageSolutions = user && c.claimed_by === user.id;
+
     container.innerHTML = `
       <div class="bg-white shadow-md rounded p-6">
         <div class="mb-6 border-b pb-4">
@@ -83,9 +85,18 @@ async function loadCaseDetails(caseId) {
           <ul class="space-y-2">
             ${(c.solves || [])
               .map(s => `
-                <li class="border rounded p-2">
+                <li class="border rounded p-2 ${s.accepted ? "bg-green-100 border-green-400" : ""}">
                   <p>${s.solve_text}</p>
                   <p class="text-sm text-gray-500">By ${s.user_id}</p>
+
+                  ${canManageSolutions
+                    ? s.accepted
+                      ? `<button class="unaccept-solution" data-solve-id="${s.id}">Un-accept</button>`
+                      : `<button class="accept-solution" data-solve-id="${s.id}">Accept</button>`
+                    : s.accepted
+                      ? `<p class="text-sm font-semibold text-green-700 mt-2">Accepted solution</p>`
+                      : `<p class="text-sm text-gray-400 mt-2">Only the claimant can accept this solution.</p>`
+                  }
                 </li>
               `)
               .join("")}
@@ -99,6 +110,16 @@ async function loadCaseDetails(caseId) {
     `;
     document.getElementById("submit-solution").addEventListener("click", () => {
       submitSolution(caseId);
+    });
+    document.querySelectorAll(".accept-solution").forEach(button => {
+      button.addEventListener("click", () => {
+        acceptSolution(button.dataset.solveId, caseId);
+      });
+    });
+    document.querySelectorAll(".unaccept-solution").forEach(button => {
+      button.addEventListener("click", () => {
+        unacceptSolution(button.dataset.solveId, caseId);
+      });
     });
   } catch (err) {
     console.error("Error loading case details:", err);
@@ -138,6 +159,64 @@ async function submitSolution(caseId) {
   console.log("Submit solution response:", data);
 
   textarea.value = "";
+  await loadCaseDetails(caseId);
+}
+
+async function acceptSolution(solveId, caseId) {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    alert("You must be logged in to accept a solution.");
+    return;
+  }
+
+  const res = await fetch(`http://localhost:4000/api/solves/${solveId}/accept`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      user_id: user.id
+    })
+  });
+
+  const data = await res.json();
+  console.log("Accept solution response:", data);
+
+  if (!res.ok) {
+    alert(data.error || "Could not accept solution.");
+    return;
+  }
+
+  await loadCaseDetails(caseId);
+}
+
+async function unacceptSolution(solveId, caseId) {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    alert("You must be logged in to unaccept a solution.");
+    return;
+  }
+
+  const res = await fetch(`http://localhost:4000/api/solves/${solveId}/unaccept`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      user_id: user.id
+    })
+  });
+
+  const data = await res.json();
+  console.log("Unaccept solution response:", data);
+
+  if (!res.ok) {
+    alert(data.error || "Could not unaccept solution.");
+    return;
+  }
+
   await loadCaseDetails(caseId);
 }
 

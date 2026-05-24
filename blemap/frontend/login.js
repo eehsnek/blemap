@@ -1,6 +1,7 @@
 import { supabase } from '../database/supabase.js';
 
 const signinBtn = document.getElementById('signin-btn');
+const goRegisterBtn = document.getElementById('goRegisterBtn');
 const messageBox = document.getElementById('message-box');
 
 if (signinBtn) {

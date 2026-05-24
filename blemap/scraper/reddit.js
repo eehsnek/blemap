@@ -122,6 +122,16 @@ app.get("/api/cases/:id", async (req, res) => {
       return res.status(500).json({ error: solvesError.message });
     }
 
+    const { data: acceptedSolves, error: acceptedError } = await supabase
+      .from("case_solves")
+      .select("id")
+      .eq("case_id", caseId)
+      .eq("accepted", true);
+
+    if (acceptedError) throw acceptedError;
+
+    const hasAcceptedSolution = acceptedSolves.length > 0;
+    
     res.json({
       ...caseData,
       solves: solvesData
@@ -235,12 +245,22 @@ app.post("/api/cases/:id/toggle-claim", async (req, res) => {
         .eq("id", caseId)
         .single();
 
+      const { data: acceptedSolves, error: acceptedError } = await supabase
+        .from("case_solves")
+        .select("id")
+        .eq("case_id", caseId)
+        .eq("accepted", true);
+
+      if (acceptedError) throw acceptedError;
+
+      const hasAcceptedSolution = acceptedSolves.length > 0;
+
       const { error: updateError } = await supabase
         .from("cases")
         .update({
           claimed_by: userId,
           claimed_at: new Date(),
-          lifecycle_state: "orange"
+          lifecycle_state: hasAcceptedSolution ? "green" : "orange"
         })
         .eq("id", caseId);
 
@@ -252,13 +272,23 @@ app.post("/api/cases/:id/toggle-claim", async (req, res) => {
       });
 
     } else {
+      const { data: acceptedSolves, error: acceptedError } = await supabase
+        .from("case_solves")
+        .select("id")
+        .eq("case_id", caseId)
+        .eq("accepted", true);
+
+      if (acceptedError) throw acceptedError;
+
+      const hasAcceptedSolution = acceptedSolves.length > 0;
+      
       // UNCLAIM
       const { error: updateError } = await supabase
         .from("cases")
         .update({
           claimed_by: null,
           claimed_at: null,
-          lifecycle_state: "grey"
+          lifecycle_state: hasAcceptedSolution ? "green" : "grey"
         })
         .eq("id", caseId);
 
@@ -326,26 +356,57 @@ app.post("/api/solves/:id/accept", async (req, res) => {
   const solveId = req.params.id;
   const userId = req.body.user_id; // who accepted
 
+  if (!userId) {
+    return res.status(400).json({ error: "user_id is required" });
+  }
+
   try {
+    const { data: solve, error: solveFetchError } = await supabase
+      .from("case_solves")
+      .select("id, case_id")
+      .eq("id", solveId)
+      .single();
+
+    if (solveFetchError) throw solveFetchError;
+
+    const { data: caseData, error: caseError } = await supabase
+      .from("cases")
+      .select("claimed_by")
+      .eq("id", solve.case_id)
+      .single();
+
+    if (caseError) throw caseError;
+
+    if (caseData.claimed_by !== userId) {
+      return res.status(403).json({
+        error: "Only the user who claimed this case can accept solutions"
+      });
+    }
+
     // Mark solve as accepted
-    const { data: solve } = await supabase.from("case_solves")
+    const { data: acceptedSolve, error: acceptError } = await supabase.from("case_solves")
       .update({ accepted: true })
       .eq("id", solveId)
       .select()
       .single();
 
+    if (acceptError) throw acceptError;
+
     // Update parent case
-    await supabase.from("cases")
+    const { error: updateCaseError } = await supabase.from("cases")
       .update({
         resolved: true,
         resolved_by: userId,
         resolved_at: new Date(),
         lifecycle_state: "green"
       })
-      .eq("id", solve.case_id);
+      .eq("id", acceptedSolve.case_id);
+
+    if (updateCaseError) throw updateCaseError;
 
     res.json({ message: "Solve accepted and case resolved" });
   } catch (err) {
+    console.error("Accept solution error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -469,6 +530,86 @@ app.post("/api/submit", async (req, res) => {
     res.status(500).json({
       error: err.message
     });
+  }
+});
+
+app.post("/api/solves/:id/unaccept", async (req, res) => {
+  const solveId = req.params.id;
+  const userId = req.body.user_id;
+
+  if (!userId) {
+    return res.status(400).json({ error: "user_id is required" });
+  }
+
+  try {
+    const { data: solve, error: solveFetchError } = await supabase
+      .from("case_solves")
+      .select("id, case_id")
+      .eq("id", solveId)
+      .single();
+
+    if (solveFetchError) throw solveFetchError;
+
+    const { data: caseData, error: caseError } = await supabase
+      .from("cases")
+      .select("claimed_by")
+      .eq("id", solve.case_id)
+      .single();
+
+    if (caseError) throw caseError;
+
+    if (caseData.claimed_by !== userId) {
+      return res.status(403).json({
+        error: "Only the user who claimed this case can unaccept solutions"
+      });
+    }
+
+    // 1. Mark this solution as not accepted anymore.
+    const { error: solveError } = await supabase
+      .from("case_solves")
+      .update({ accepted: false })
+      .eq("id", solveId);
+
+    if (solveError) throw solveError;
+
+    // 2. Check whether this case still has any accepted solutions.
+    const { data: acceptedSolves, error: acceptedError } = await supabase
+      .from("case_solves")
+      .select("id")
+      .eq("case_id", solve.case_id)
+      .eq("accepted", true);
+
+    if (acceptedError) throw acceptedError;
+
+    const hasAcceptedSolution = acceptedSolves.length > 0;
+
+    // 3. Recalculate case state.
+    const nextState = hasAcceptedSolution
+      ? "green"
+      : caseData.claimed_by
+        ? "orange"
+        : "grey";
+
+    // 4. Update the parent case.
+    const { error: updateCaseError } = await supabase
+      .from("cases")
+      .update({
+        resolved: hasAcceptedSolution,
+        resolved_at: hasAcceptedSolution ? new Date() : null,
+        resolved_by: hasAcceptedSolution ? userId : null,
+        lifecycle_state: nextState
+      })
+      .eq("id", solve.case_id);
+
+    if (updateCaseError) throw updateCaseError;
+
+    res.json({
+      message: "Solution unaccepted",
+      lifecycle_state: nextState
+    });
+  } catch (err) {
+    console.error("Unaccept solution error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 

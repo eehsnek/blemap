@@ -1,24 +1,32 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login</title>
   <link href="../frontend/output.css" rel="stylesheet">
-  <link rel="icon" href="data:,"> <!-- Prevent default favicon request -->
+  <link rel="icon" href="data:,">
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
-<body>
-  <h2>Login</h2>
-  <input id="signin-email" type="email" placeholder="Email">
-  <input id="signin-password" type="password" placeholder="Password">
-  <button id="signin-btn">Sign In</button>
-  <div id="message-box"></div>
+<body class="min-h-screen bg-[#13100d] text-white">
+  <main class="min-h-screen flex items-center justify-center px-6">
+    <section class="w-full max-w-md bg-[#201a16] p-8 rounded border border-[#534438]/40">
+      <p class="text-sm uppercase tracking-wide text-[#43e2d2] mb-2">BleMap</p>
+      <h1 class="text-3xl font-bold mb-2">Welcome back</h1>
+      <p class="text-[#e5e2e1]/70 mb-8">Sign in to continue mapping problems and proposed solutions.</p>
 
-  <button id="goRegisterBtn">Go to Register</button>
-  <div class="bg-red-500 text-white p-4">
-    <p>This is a red alert box!</p>
-  </div>
+      <div class="space-y-4">
+        <input id="signin-email" class="w-full bg-[#13100d] text-white placeholder-[#e5e2e1]/45 px-4 py-3 rounded border border-[#534438]/40 focus:outline-none focus:border-[#ffb779]" type="email" placeholder="Email">
+        <input id="signin-password" class="w-full bg-[#13100d] text-white placeholder-[#e5e2e1]/45 px-4 py-3 rounded border border-[#534438]/40 focus:outline-none focus:border-[#ffb779]" type="password" placeholder="Password">
+        <button id="signin-btn" class="w-full bg-[#cd7f32] hover:bg-[#ffb779] text-[#13100d] font-semibold px-4 py-3 rounded transition">Sign In</button>
+      </div>
 
-  <!-- ✅ Separate script for login -->
+      <div id="message-box" class="mt-4 text-sm text-[#ffb779]"></div>
+
+      <button id="goRegisterBtn" class="mt-6 text-sm text-[#43e2d2] hover:text-[#7ff4ea]">Create an account</button>
+    </section>
+  </main>
+
   <script type="module" src="/frontend/login.js" defer></script>
 </body>
 </html>

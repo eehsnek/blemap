@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Submit Case</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-100 min-h-screen m-0 p-0">
+    <div class="flex min-h-screen">
+        <!-- Vertical Nav -->
+        <nav class="bg-blue-600 text-white w-48 min-h-screen p-4 flex flex-col space-y-4">
+            <a href="home.html" class="hover:text-gray-200">Home</a>
+            <a href="input.html" class="hover:text-gray-200">Submit a Case</a>
+            <a href="profile.html" class="hover:text-gray-200">Profile</a>
+            <a href="caseMatrix.html" class="font-bold hover:text-gray-200">Case Matrix</a>
+        </nav>
+        <div class="flex-1 p-6">
+            <h1 class="text-3xl font-bold mb-2">Case Matrix</h1>
+            <p class="text-gray-600 mb-6">Prioritize cases by urgency and claim status</p>
+            <!-- Legend -->
+            <div class="flex gap-4 mb-6 text-sm flex-wrap">
+                <div class="flex items-center gap-2 px-2 py-1 bg-gray-50 rounded">
+                    <div class="w-4 h-4 rounded bg-white border"></div>
+                    <span>Grey = Unresolved</span>
+                </div>
+                <div class="flex items-center gap-2 px-2 py-1 bg-gray-50 rounded">
+                    <div class="w-4 h-4 rounded bg-orange-300"></div>
+                    <span>Orange = Claimed</span>
+                </div>
+                <div class="flex items-center gap-2 px-2 py-1 bg-gray-50 rounded">
+                    <div class="w-4 h-4 rounded bg-green-300"></div>
+                    <span>Green = Resolved</span>
+                </div>
+            </div>
+            <div 
+                id="matrix" 
+                class="relative w-full bg-gray-100 border rounded"
+                style="height: 500px;">
+                <!-- axes -->
+                <div class="absolute left-10 right-10 top-1/2 border-t"></div>
+                <div class="absolute top-10 bottom-10 left-1/2 border-l"></div>
+                <!-- labels -->
+                <p class="absolute bottom-2 left-1/2">
+                    Solve Count →
+                </p>
+                <p class="absolute top-1/2 left-2 -rotate-90">
+                    Pain Count →
+                </p>
+            </div>
+        </div>
+    </div>
+  <script src="caseMatrix.js"></script>
+</body>
+</html>
