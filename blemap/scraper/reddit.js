@@ -203,15 +203,34 @@ app.get("/api/aggregate", async (req, res) => {
 });
 
 app.get("/api/cases", async (req, res) => {
+  const userId = req.query.user_id; // send this from frontend
+
   try {
     const { data: cases, error } = await supabase
       .from("cases")
       .select("*");
+
     if (error) throw error;
-    
-    res.json(cases);
+
+    const enriched = await Promise.all(
+      cases.map(async (c) => {
+        const { data: painRow } = await supabase
+          .from("case_pains")
+          .select("*")
+          .eq("case_id", c.id)
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        return {
+          ...c,
+          user_pained: !!painRow
+        };
+      })
+    );
+
+    res.json(enriched);
+
   } catch (err) {
-    console.error("Fetch cases error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -307,34 +326,61 @@ app.post("/api/cases/:id/toggle-claim", async (req, res) => {
 });
 
 app.post("/api/cases/:id/pain", async (req, res) => {
-  // insert into case_pains, increment pain_count
   const caseId = req.params.id;
   const userId = req.body.user_id;
 
   try {
-    await supabase.from("case_pains").insert({
-      case_id: caseId,
-      user_id: userId,
-      pained_at: new Date()
-    });
+    const { data: existing } = await supabase
+      .from("case_pains")
+      .select("*")
+      .eq("case_id", caseId)
+      .eq("user_id", userId)
+      .maybeSingle();
 
-    await supabase.from("cases")
-      .update({ pain_count: supabase.rpc("increment_pain_count", { case_id: caseId }) }) // error
+    let state;
+
+    if (existing) {
+      await supabase
+        .from("case_pains")
+        .delete()
+        .eq("case_id", caseId)
+        .eq("user_id", userId);
+
+      state = "unpained";
+    } else {
+      await supabase.from("case_pains").insert({
+        case_id: caseId,
+        user_id: userId,
+        pained_at: new Date()
+      });
+
+      state = "pained";
+    }
+
+    const { count } = await supabase
+      .from("case_pains")
+      .select("*", { count: "exact", head: true })
+      .eq("case_id", caseId);
+
+    await supabase
+      .from("cases")
+      .update({ pain_count: count })
       .eq("id", caseId);
 
-    res.json({ message: "Pain recorded successfully" });
+    res.json({ state });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 app.post("/api/cases/:id/solve", async (req, res) => {
-  // insert into case_solves, increment solve_count
   const caseId = req.params.id;
   const userId = req.body.user_id;
   const { solve_text } = req.body;
 
   try {
+    // 1. insert take into case_solves
     await supabase.from("case_solves").insert({
       case_id: caseId,
       user_id: userId,
@@ -342,11 +388,30 @@ app.post("/api/cases/:id/solve", async (req, res) => {
       created_at: new Date()
     });
 
-    await supabase.from("cases")
-      .update({ solve_count: supabase.rpc("increment_solve_count", { case_id: caseId }) }) // error
+    // 2. count all solves for this case
+    const { count, error: countError } = await supabase
+      .from("case_solves")
+      .select("*", { count: "exact", head: true })
+      .eq("case_id", caseId);
+
+    if (countError) throw countError;
+
+    // 3. update cases.solve_count
+    const { error: updateError } = await supabase
+      .from("cases")
+      .update({
+        solve_count: count
+      })
       .eq("id", caseId);
 
-    res.json({ message: "Solve submitted successfully" });
+    if (updateError) throw updateError;
+
+    // 4. success response
+    res.json({
+      message: "Take submitted successfully",
+      solve_count: count
+    });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

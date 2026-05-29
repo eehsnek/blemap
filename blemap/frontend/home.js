@@ -62,76 +62,83 @@ async function toggleClaim(button, caseId) {
     button.innerText = "Unclaim";
     button.dataset.claimed = "true";
   }
-
-  // Optionally refresh your case list
-  // loadCases();
 }
-
-/*
-async function claimCase(caseId) {
-  try {
-    // Get the current user from Supabase Auth
-    const { data: { user }, error } = await supabase.auth.getUser();
-
-    if (error || !user) {
-      alert("You must be logged in to claim a case.");
-      return;
-    }
-
-    const res = await fetch(`http://localhost:4000/api/cases/${caseId}/claim`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: user.id }) // replace with actual UUID
-    });
-
-    if (!res.ok) {
-      throw new Error(`Failed to claim case ${caseId}: ${res.statusText}`);
-    }
-
-    const data = await res.json();
-    console.log("Claimed:", data);
-
-    loadCases();
-  } catch (err) {
-    console.error("Error claiming case:", err);
-    alert("Could not claim case. Please try again.");
-  }
-}*/
 
 async function togglePain(button, caseId) {
-  const hasPain = button.dataset.pained === "true";
+  const { data: { user }, error } = await supabase.auth.getUser();
 
-  if (hasPain) {
-    // Remove pain
-    console.log(`Pain removed for case ${caseId} (dummy).`);
-    button.innerText = "Pain";
-    button.dataset.pained = "false";
-  } else {
-    // Add pain
-    console.log(`Pain added for case ${caseId} (dummy).`);
-    button.innerText = "Unpain";
-    button.dataset.pained = "true";
+  if (error || !user) {
+    console.error("No authenticated user");
+    return;
   }
 
-  // Optionally refresh case list
-  // loadCases();
-}
+  const res = await fetch(
+    `http://localhost:4000/api/cases/${caseId}/pain`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        user_id: user.id   // ✅ REAL USER ID
+      })
+    }
+  );
 
+  const data = await res.json();
+
+  console.log("Pain response:", data);
+
+  button.innerText = 
+    data.state === "pained" ? "Unpain" : "Pain";
+
+  button.dataset.pained = data.state === "pained";
+}
 
 async function addSolve(caseId) {
   const solveText = prompt("Enter your solution:");
-  const res = await fetch(`/api/cases/${caseId}/solve`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: "your-user-uuid", solve_text: solveText })
-  });
-  const data = await res.json();
-  console.log("Solve submitted:", data);
-  loadCases();
+
+  if (!solveText) return;
+
+  try {
+    const res = await fetch(
+      `/api/cases/${caseId}/solve`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          user_id: "your-user-uuid",
+          solve_text: solveText
+        })
+      }
+    );
+
+    if (!res.ok) throw new Error("Solve request failed");
+
+    const data = await res.json();
+
+    console.log("Solve submitted:", data);
+
+    // IMPORTANT: refresh system state
+    await loadCases();
+    await renderMatrix?.();
+
+  } catch (err) {
+    console.error("Solve error:", err);
+  }
 }
 
 async function loadCases() {
-  const response = await fetch("http://localhost:4000/api/cases");
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    console.error("No authenticated user");
+    return;
+  }
+
+  const response = await fetch(`http://localhost:4000/api/cases?user_id=${user.id}`);
   const cases = await response.json();
 
   const container = document.getElementById("cases");
@@ -166,7 +173,9 @@ async function loadCases() {
         <button class="claim bg-[#cd7f32] text-[#13100d] font-semibold px-3 py-1 rounded">
           ${c.claimed_by ? "Unclaim" : "Claim"}
         </button>
-        <button class="pain bg-[#2a2a2a] text-[#ffb779] px-3 py-1 rounded">Pain</button>
+        <button class="pain bg-[#2a2a2a] text-[#ffb779] px-3 py-1 rounded">
+          ${c.user_pained ? "Unpain" : "Pain"}
+        </button>
         <button class="solve bg-[#43e2d2] text-[#13100d] font-semibold px-3 py-1 rounded">Solve</button>
       </div>
     `;
