@@ -39,72 +39,73 @@ async function loadCaseDetails(caseId) {
     const canManageSolutions = user && c.claimed_by === user.id;
 
     container.innerHTML = `
-      <div class="bg-white shadow-md rounded p-6">
-        <div class="mb-6 border-b pb-4">
-          <h1 class="text-3xl font-bold text-gray-900">${c.topic}</h1>
-          <p class="text-gray-700 mt-2">${c.summary}</p>
-          <p class="mt-1 text-sm font-semibold text-indigo-600">Mode: ${c.mode || ""}</p>
+      <div class="case-card">
+        <div class="case-card__header">
+          <h1 class="case-title">${c.topic}</h1>
+          <p class="case-summary">${c.summary}</p>
+          <p class="case-meta">Mode: ${c.mode || ""}</p>
         </div>
 
-        <div class="grid grid-cols-2 gap-4 mb-6">
-          <div class="bg-gray-50 p-4 rounded shadow">
-            <p class="font-semibold">Pain</p>
-            <span class="text-lg font-bold text-pink-600">${c.pain_count}</span>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <strong>Pain</strong>
+            <span class="stat-value">${c.pain_count}</span>
           </div>
-          <div class="bg-gray-50 p-4 rounded shadow">
-            <p class="font-semibold">Solves</p>
-            <span class="text-lg font-bold text-green-600">${c.solve_count}</span>
+          <div class="stat-card">
+            <strong>Solves</strong>
+            <span class="stat-value">${c.solve_count}</span>
           </div>
-          <div class="bg-gray-50 p-4 rounded shadow">
-            <p class="font-semibold">Claimed By</p>
-            <span class="text-lg font-bold text-orange-600">${c.claimed_by || "None"}</span>
+          <div class="stat-card">
+            <strong>Claimed By</strong>
+            <span class="stat-value">${c.claimed_by || "None"}</span>
           </div>
-          <div class="bg-gray-50 p-4 rounded shadow">
-            <p class="font-semibold">Status</p>
-            <span class="text-lg font-bold text-gray-600">${c.lifecycle_state}</span>
+          <div class="stat-card">
+            <strong>Status</strong>
+            <span class="stat-value">${c.lifecycle_state}</span>
           </div>
         </div>
 
-        <div class="mb-6">
-          <h2 class="text-xl font-semibold mb-2">Posts</h2>
-          <ul class="list-disc ml-6 text-blue-600">
+        <div class="section-card">
+          <h2 class="section-heading">Posts</h2>
+          <ul class="posts-list">
             ${(c.permalinks || [])
               .map(link => `<li><a href="${link}" target="_blank">${link}</a></li>`)
               .join("")}
           </ul>
         </div>
 
-        <div class="flex gap-3 mb-6">
-          <button class="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600">Claim</button>
-          <button class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">Unclaim</button>
-          <button class="px-4 py-2 bg-pink-500 text-white rounded hover:bg-pink-600">Pain</button>
+        <div class="section-card">
+          <h2 class="section-heading">Actions</h2>
+          <div class="button-row">
+            <button class="button button--accent">Claim</button>
+            <button class="button button--secondary">Unclaim</button>
+            <button class="button button--secondary">Pain</button>
+          </div>
         </div>
 
-        <div class="mb-6">
-          <h2 class="text-xl font-semibold mb-2">Solutions</h2>
-          <ul class="space-y-2">
+        <div class="section-card">
+          <h2 class="section-heading">Solutions</h2>
+          <ul class="solutions-list">
             ${(c.solves || [])
               .map(s => `
-                <li class="border rounded p-2 ${s.accepted ? "bg-green-100 border-green-400" : ""}">
+                <li class="solution-card ${s.accepted ? "solution-card--accepted" : ""}">
                   <p>${s.solve_text}</p>
-                  <p class="text-sm text-gray-500">By ${s.user_id}</p>
+                  <p class="solution-meta">By ${s.user_id}</p>
 
                   ${canManageSolutions
                     ? s.accepted
-                      ? `<button class="unaccept-solution" data-solve-id="${s.id}">Un-accept</button>`
-                      : `<button class="accept-solution" data-solve-id="${s.id}">Accept</button>`
+                      ? `<button class="button button--secondary unaccept-solution" data-solve-id="${s.id}">Un-accept</button>`
+                      : `<button class="button button--primary accept-solution" data-solve-id="${s.id}">Accept</button>`
                     : s.accepted
-                      ? `<p class="text-sm font-semibold text-green-700 mt-2">Accepted solution</p>`
-                      : `<p class="text-sm text-gray-400 mt-2">Only the claimant can accept this solution.</p>`
+                      ? `<p class="solution-status">Accepted solution</p>`
+                      : `<p class="solution-meta">Only the claimant can accept this solution.</p>`
                   }
                 </li>
               `)
               .join("")}
           </ul>
-          <textarea id="solution-text" class="w-full border rounded p-2 mt-2" placeholder="Propose a solution..."></textarea>
-          <button id="submit-solution" class="mt-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
-            Submit Solution
-          </button>
+          <textarea id="solution-text" class="solution-input" placeholder="Propose a solution..."></textarea>
+          <button id="submit-solution" class="button button--primary" style="margin-top: 16px;">Submit Solution</button>
         </div>
       </div>
     `;
