@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register</title>
+  <link href="./output.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="min-h-screen bg-[#13100d] text-white">
+  <main class="min-h-screen flex items-center justify-center px-6">
+    <section class="w-full max-w-md bg-[#201a16] p-8 rounded border border-[#534438]/40">
+      <p class="text-sm uppercase tracking-wide text-[#43e2d2] mb-2">BleMap</p>
+      <h1 class="text-3xl font-bold mb-2">Create account</h1>
+      <p class="text-[#e5e2e1]/70 mb-8">Join the workspace for tracking cases, claims, and proposed solutions.</p>
+
+      <div class="space-y-4">
+        <input id="signup-email" class="w-full bg-[#13100d] text-white placeholder-[#e5e2e1]/45 px-4 py-3 rounded border border-[#534438]/40 focus:outline-none focus:border-[#43e2d2]" type="email" placeholder="Email">
+        <input id="signup-password" class="w-full bg-[#13100d] text-white placeholder-[#e5e2e1]/45 px-4 py-3 rounded border border-[#534438]/40 focus:outline-none focus:border-[#43e2d2]" type="password" placeholder="Password">
+        <button id="signup-btn" class="w-full bg-[#43e2d2] hover:bg-[#7ff4ea] text-[#13100d] font-semibold px-4 py-3 rounded transition">Sign Up</button>
+      </div>
+
+      <div id="message-box" class="mt-4 text-sm text-[#ffb779]"></div>
+
+      <button id="goLogInBtn" class="mt-6 text-sm text-[#ffb779] hover:text-[#ffd1aa]">Back to login</button>
+    </section>
+  </main>
+
+  <script type="module" src="/frontend/register.js" defer></script>
+</body>
+</html>
