@@ -1,41 +1,24 @@
-import { supabase } from '../database/supabase.js'
-
-const { data: { user } } = await supabase.auth.getUser();
+import { supabase } from "../database/supabase.js";
+import { apiFetch } from "./api.js";
 
 const params = new URLSearchParams(window.location.search);
-let caseId = params.get("id");
+const caseId = params.get("id");
 
 if (!caseId || caseId === "null") {
   document.getElementById("case-details").innerHTML =
     "<p>No valid case ID provided.</p>";
-  throw new Error("Invalid caseId");
+} else {
+  loadCaseDetails(caseId);
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+async function loadCaseDetails(id) {
   const container = document.getElementById("case-details");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!container) return;
-
-  const params = new URLSearchParams(window.location.search);
-  const caseId = params.get("id");
-
-  if (!caseId) {
-    container.innerHTML = `<p>No valid case ID provided.</p>`;
-    return;
-  }
-
-  loadCaseDetails(caseId);
-});
-
-async function loadCaseDetails(caseId) {
   try {
-    const response = await fetch(`http://localhost:4000/api/cases/${caseId}`);
-    const c = await response.json();
-
-    console.log("Case details response:", c);
-    console.log("Solutions from backend:", c.solves);
-
-    const container = document.getElementById("case-details");
+    const c = await apiFetch(`/cases/${id}`);
     const canManageSolutions = user && c.claimed_by === user.id;
 
     container.innerHTML = `
@@ -69,155 +52,123 @@ async function loadCaseDetails(caseId) {
           <h2 class="section-heading">Posts</h2>
           <ul class="posts-list">
             ${(c.permalinks || [])
-              .map(link => `<li><a href="${link}" target="_blank">${link}</a></li>`)
-              .join("")}
+              .map(
+                (link) =>
+                  `<li><a href="${link}" target="_blank" rel="noopener">${link}</a></li>`
+              )
+              .join("") || "<li>No linked posts yet.</li>"}
           </ul>
-        </div>
-
-        <div class="section-card">
-          <h2 class="section-heading">Actions</h2>
-          <div class="button-row">
-            <button class="button button--accent">Claim</button>
-            <button class="button button--secondary">Unclaim</button>
-            <button class="button button--secondary">Pain</button>
-          </div>
         </div>
 
         <div class="section-card">
           <h2 class="section-heading">Solutions</h2>
           <ul class="solutions-list">
             ${(c.solves || [])
-              .map(s => `
+              .map(
+                (s) => `
                 <li class="solution-card ${s.accepted ? "solution-card--accepted" : ""}">
                   <p>${s.solve_text}</p>
                   <p class="solution-meta">By ${s.user_id}</p>
-
-                  ${canManageSolutions
-                    ? s.accepted
-                      ? `<button class="button button--secondary unaccept-solution" data-solve-id="${s.id}">Un-accept</button>`
-                      : `<button class="button button--primary accept-solution" data-solve-id="${s.id}">Accept</button>`
-                    : s.accepted
-                      ? `<p class="solution-status">Accepted solution</p>`
-                      : `<p class="solution-meta">Only the claimant can accept this solution.</p>`
+                  ${
+                    canManageSolutions
+                      ? s.accepted
+                        ? `<button type="button" class="button button--secondary unaccept-solution" data-solve-id="${s.id}">Un-accept</button>`
+                        : `<button type="button" class="button button--primary accept-solution" data-solve-id="${s.id}">Accept</button>`
+                      : s.accepted
+                        ? `<p class="solution-status">Accepted solution</p>`
+                        : `<p class="solution-meta">Only the claimant can accept this solution.</p>`
                   }
                 </li>
-              `)
-              .join("")}
+              `
+              )
+              .join("") || "<li>No solutions yet.</li>"}
           </ul>
           <textarea id="solution-text" class="solution-input" placeholder="Propose a solution..."></textarea>
-          <button id="submit-solution" class="button button--primary" style="margin-top: 16px;">Submit Solution</button>
+          <button type="button" id="submit-solution" class="button button--primary" style="margin-top: 16px;">Submit Solution</button>
         </div>
       </div>
     `;
+
     document.getElementById("submit-solution").addEventListener("click", () => {
-      submitSolution(caseId);
+      submitSolution(id);
     });
-    document.querySelectorAll(".accept-solution").forEach(button => {
+    document.querySelectorAll(".accept-solution").forEach((button) => {
       button.addEventListener("click", () => {
-        acceptSolution(button.dataset.solveId, caseId);
+        acceptSolution(button.dataset.solveId, id);
       });
     });
-    document.querySelectorAll(".unaccept-solution").forEach(button => {
+    document.querySelectorAll(".unaccept-solution").forEach((button) => {
       button.addEventListener("click", () => {
-        unacceptSolution(button.dataset.solveId, caseId);
+        unacceptSolution(button.dataset.solveId, id);
       });
     });
   } catch (err) {
     console.error("Error loading case details:", err);
+    container.innerHTML = `<p>Could not load case.</p>`;
   }
 }
 
-loadCaseDetails(caseId);
-
-async function submitSolution(caseId) {
+async function submitSolution(id) {
   const textarea = document.getElementById("solution-text");
   const solveText = textarea.value.trim();
-
   if (!solveText) {
     alert("Please enter a solution first.");
     return;
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
-
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
     alert("You must be logged in to submit a solution.");
     return;
   }
 
-  const res = await fetch(`http://localhost:4000/api/cases/${caseId}/solve`, {
+  await apiFetch(`/cases/${id}/solve`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      user_id: user.id,
-      solve_text: solveText
-    })
+    body: JSON.stringify({ user_id: user.id, solve_text: solveText }),
   });
 
-  const data = await res.json();
-  console.log("Submit solution response:", data);
-
   textarea.value = "";
-  await loadCaseDetails(caseId);
+  await loadCaseDetails(id);
 }
 
 async function acceptSolution(solveId, caseId) {
-  const { data: { user } } = await supabase.auth.getUser();
-
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
-    alert("You must be logged in to accept a solution.");
+    alert("You must be logged in.");
     return;
   }
 
-  const res = await fetch(`http://localhost:4000/api/solves/${solveId}/accept`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      user_id: user.id
-    })
-  });
-
-  const data = await res.json();
-  console.log("Accept solution response:", data);
-
-  if (!res.ok) {
-    alert(data.error || "Could not accept solution.");
-    return;
+  try {
+    await apiFetch(`/solves/${solveId}/accept`, {
+      method: "POST",
+      body: JSON.stringify({ user_id: user.id }),
+    });
+    await loadCaseDetails(caseId);
+  } catch (err) {
+    alert(err.message);
   }
-
-  await loadCaseDetails(caseId);
 }
 
 async function unacceptSolution(solveId, caseId) {
-  const { data: { user } } = await supabase.auth.getUser();
-
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
-    alert("You must be logged in to unaccept a solution.");
+    alert("You must be logged in.");
     return;
   }
 
-  const res = await fetch(`http://localhost:4000/api/solves/${solveId}/unaccept`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      user_id: user.id
-    })
-  });
-
-  const data = await res.json();
-  console.log("Unaccept solution response:", data);
-
-  if (!res.ok) {
-    alert(data.error || "Could not unaccept solution.");
-    return;
+  try {
+    await apiFetch(`/solves/${solveId}/unaccept`, {
+      method: "POST",
+      body: JSON.stringify({ user_id: user.id }),
+    });
+    await loadCaseDetails(caseId);
+  } catch (err) {
+    alert(err.message);
   }
-
-  await loadCaseDetails(caseId);
 }
-

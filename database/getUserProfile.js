@@ -1,30 +1,19 @@
-// database/getUserProfile.js
-import { supabase } from './supabase.js'
+import { supabase } from "./supabase.js";
 
 export async function getCurrentUserProfile() {
-  // Get the currently authenticated user
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
-  if (userError) throw userError
-  if (!user) return null
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!user) return null;
 
-  // Query the profiles table, joining with roles
-  const { data: users, error: profileError } = await supabase
-    .from('users')
-    .select('username')
-    .eq('id', user.id)
-    .single()
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("username, role_id, roles(name)")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  if (profileError) throw profileError
-  return profile
-}
-
-const { data, error } = await supabase
-  .from('users')
-  .select('username')
-  .eq('id', '88ec5a7b-9733-49cb-ae42-65c49aa445b1')
-
-if (error) {
-  console.error(error)
-} else {
-  console.log(data)
+  if (profileError) throw profileError;
+  return profile ? { ...profile, email: user.email } : { id: user.id, email: user.email };
 }
