@@ -678,4 +678,104 @@ app.post("/api/solves/:id/unaccept", async (req, res) => {
   }
 });
 
+app.get("/api/users/:id/profile-report", async (req, res) => {
+  const userId = req.params.id;
+
+  try {
+    // USER
+    const { data: user } = await supabase
+      .from("users")
+      .select("id, username")
+      .eq("id", userId)
+      .single();
+
+    // CASES CLAIMED
+    const { data: claimed_cases } = await supabase
+      .from("cases")
+      .select("id, topic")
+      .eq("claimed_by", userId);
+
+    // TAKES
+    const { data: takes } = await supabase
+      .from("case_solves")
+      .select("id, case_id, solve_text, accepted")
+      .eq("user_id", userId);
+
+    // PAINS
+    const { data: pains } = await supabase
+      .from("case_pains")
+      .select("case_id")
+      .eq("user_id", userId);
+
+    // SUMMARY
+    const cases_helped_resolved =
+      takes?.filter(t => t.accepted === true).length || 0;
+
+    const summary = {
+      cases_claimed: claimed_cases?.length || 0,
+      takes_submitted: takes?.length || 0,
+      pain_interactions: pains?.length || 0,
+      cases_helped_resolved
+    };
+
+    // REPORTS (computed simple)
+    const takes_by_case = {};
+    (takes || []).forEach(t => {
+      takes_by_case[t.case_id] = (takes_by_case[t.case_id] || 0) + 1;
+    });
+
+    const { data: allCases } = await supabase
+      .from("cases")
+      .select("id, topic");
+
+    const caseMap = Object.fromEntries(
+      allCases.map(c => [c.id, c.topic])
+    );
+
+    const takes_by_case_report = Object.entries(takes_by_case)
+      .map(([case_id, count]) => ({
+        case_id,
+        topic: caseMap[case_id],
+        count
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    const resolved_cases = (takes || [])
+      .filter(t => t.accepted)
+      .map(t => ({
+        case_id: t.case_id,
+        solve_text: t.solve_text,
+        topic: caseMap[t.case_id]
+      }));
+
+    const pain_cases = (pains || []).map(p => ({
+      case_id: p.case_id,
+      topic: caseMap[p.case_id]
+    }));
+
+    // Check if user exists
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username
+      },
+      summary,
+      reports: {
+        claimed_cases,
+        takes_by_case: takes_by_case_report,
+        resolved_cases,
+        pain_cases
+      }
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(4000, () => console.log("Backend running on http://localhost:4000"));

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Case Matrix</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="design-system.css">
   <style>
     :root {
       color-scheme: dark;
@@ -74,17 +75,18 @@
 <body>
   <div class="min-h-screen flex">
     <!-- Vertical Nav -->
-    <nav class="w-56 min-h-screen p-6 flex flex-col justify-between bg-[#201f1f] text-[#e5e2e1] ghost-outline">
+    <nav class="sidebar-nav">
       <div>
-        <div class="text-2xl font-semibold mb-8 text-[#ffb779] heading-serif">BleMap</div>
-        <div class="space-y-3 text-sm">
-          <a href="home.html" class="block text-[#e5e2e1]/80 hover:text-[#43e2e2] transition">Home</a>
-          <a href="input.html" class="block text-[#e5e2e1]/80 hover:text-[#43e2e2] transition">Submit a Case</a>
-          <a href="profile.html" class="block text-[#e5e2e1]/80 hover:text-[#43e2e2] transition">Profile</a>
-          <a href="caseMatrix.html" class="block text-[#ffb779] font-semibold">Case Matrix</a>
+        <div class="nav-brand">BleMap</div>
+
+        <div class="nav-links">
+          <a href="home.html" class="nav-link">Home</a>
+          <a href="input.html" class="nav-link">New Case</a>
+          <a href="profile.html" class="nav-link">Profile</a>
+          <a href="caseMatrix.html" class="nav-link active">Case Matrix</a>
         </div>
       </div>
-      <div class="mt-6 text-xs text-[#e5e2e1]/60">
+      <div class="nav-tagline">
         The Living Archive · Case intelligence in layered view
       </div>
     </nav>

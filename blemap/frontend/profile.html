@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile - BleMap</title>
+  <link rel="stylesheet" href="design-system.css">
+</head>
+<body>
+  <div class="layout-container">
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar-nav">
+      <div>
+        <div class="nav-brand">BleMap</div>
+        <div class="nav-links">
+          <a href="home.html" class="nav-link">Home</a>
+          <a href="input.html" class="nav-link">New Case</a>
+          <a href="profile.html" class="nav-link active">Profile</a>
+          <a href="caseMatrix.html" class="nav-link">Case Matrix</a>
+        </div>
+      </div>
+      <div class="nav-tagline">The Living Archive · User Intelligence</div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <span class="page-label">User Profile</span>
+        <h1 class="page-title">Your Archive</h1>
+        <p class="page-description">A record of your contributions, insights, and impact across cases.</p>
+      </div>
+
+      <!-- Identity Section -->
+      <section class="section">
+        <div id="identity" class="card card-solution" style="padding: var(--spacing-lg);"></div>
+      </section>
+
+      <!-- Activity Summary -->
+      <section class="section">
+        <h2 class="section-title">Activity Summary</h2>
+        <div id="summaryCards" class="grid grid-2"></div>
+      </section>
+
+      <!-- Reports Section -->
+      <section class="section section-secondary">
+        <h2 class="section-title">Most Active Cases</h2>
+        <div id="takesByCase" class="grid grid-2"></div>
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">Cases Helped Resolve</h2>
+        <div id="resolvedCases" class="grid grid-2"></div>
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">Cases You Engaged With</h2>
+        <div id="painCases" class="grid grid-2"></div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="profile.js"></script>
+</body>
+</html>

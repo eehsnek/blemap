@@ -5,18 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Home Page</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="design-system.css">
 </head>
 <body class="bg-[#13100d] text-white">
   <div class="min-h-screen flex">
-    <nav class="bg-[#201a16] text-[#e5e2e1] w-52 min-h-screen p-5 flex flex-col space-y-3 border-r border-[#534438]/30">
-      <div class="text-xl font-bold text-white mb-6">BleMap</div>
-      <a href="home.html" class="font-semibold text-[#ffb779] hover:text-[#ffd1aa]">Home</a>
-      <a href="input.html" class="hover:text-[#43e2d2]">New Case</a>
-      <a href="profile.html" class="hover:text-[#43e2d2]">Profile</a>
-      <a href="caseMatrix.html" class="hover:text-[#43e2d2]">Case Matrix</a>
-    </nav>
+    <nav class="sidebar-nav">
+      <div>
+        <div class="nav-brand">BleMap</div>
 
-    <main class="flex-1 p-8">
+        <div class="nav-links">
+          <a href="home.html" class="nav-link active">Home</a>
+          <a href="input.html" class="nav-link">New Case</a>
+          <a href="profile.html" class="nav-link">Profile</a>
+          <a href="caseMatrix.html" class="nav-link">Case Matrix</a>
+        </div>
+      </div>
+
+      <div class="nav-tagline">
+        The Living Archive · Case System
+      </div>
+    </nav>
+    <main class="main-content">
       <header class="flex items-center justify-between gap-4 mb-8">
         <div>
           <p class="text-sm uppercase tracking-wide text-[#43e2d2]">Living Archive</p>

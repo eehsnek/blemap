@@ -15,7 +15,7 @@ export async function getCurrentUserProfile() {
     .single()
 
   if (profileError) throw profileError
-  return profile
+  return users
 }
 
 const { data, error } = await supabase

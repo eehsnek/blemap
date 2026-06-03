@@ -2,25 +2,51 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Submit Case</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Submit Case - BleMap</title>
+  <link rel="stylesheet" href="design-system.css">
 </head>
-<body class="bg-gray-100 flex">
-  <!-- Vertical Nav -->
-  <nav class="bg-blue-600 text-white w-48 min-h-screen p-4 flex flex-col space-y-4">
-    <a href="home.html" class="hover:text-gray-200">Home</a>
-    <a href="input.html" class="font-bold hover:text-gray-200">New Case</a>
-    <a href="profile.html" class="hover:text-gray-200">Profile</a>
-    <a href="about.html" class="hover:text-gray-200">About</a>
-  </nav>
+<body>
+  <div class="layout-container">
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar-nav">
+      <div>
+        <div class="nav-brand">BleMap</div>
+        <div class="nav-links">
+          <a href="home.html" class="nav-link">Home</a>
+          <a href="input.html" class="nav-link active">New Case</a>
+          <a href="profile.html" class="nav-link">Profile</a>
+          <a href="caseMatrix.html" class="nav-link">Case Matrix</a>
+        </div>
+      </div>
+      <div class="nav-tagline">The Living Archive · Problem Submission</div>
+    </nav>
 
-  <!-- Main Content -->
-  <div class="flex-1 p-6">
-    <h1 class="text-2xl font-bold mb-4">Submit a Case</h1>
-    <textarea id="post-input" class="w-full border rounded p-2 mb-4" placeholder="Describe your case..."></textarea>
-    <button id="submit-post" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Submit</button>
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <span class="page-label">Problem Submission</span>
+        <h1 class="page-title">Submit a Case</h1>
+        <p class="page-description">Document a challenge or problem you'd like to explore collaboratively.</p>
+      </div>
 
-    <div id="case-details" class="max-w-xl mx-auto mt-6"></div>
+      <div id="message-box" class="mb-lg text-secondary"></div>
+
+      <!-- Form Section -->
+      <section class="section">
+        <h2 class="section-title">Case Details</h2>
+        <div class="card card-problem" style="padding: var(--spacing-lg);">
+          <div class="mb-lg">
+            <label class="label-medium text-muted mb-sm" style="display: block;">Problem Statement</label>
+            <textarea id="post-input" placeholder="Describe the case, problem, or challenge you want to explore..." class="body-large"></textarea>
+          </div>
+          <button id="submit-post" class="btn btn-primary">Submit Case</button>
+        </div>
+      </section>
+
+      <!-- Details Display -->
+      <div id="case-details"></div>
+    </main>
   </div>
 
   <script src="input.js"></script>
