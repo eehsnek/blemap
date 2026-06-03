@@ -1,0 +1,292 @@
+:root {
+  --ble-bg: #13100d;
+  --ble-surface: #201a16;
+  --ble-surface-2: #2a2a2a;
+  --ble-text: #e5e2e1;
+  --ble-muted: rgba(229, 226, 225, 0.7);
+  --ble-border: rgba(83, 68, 56, 0.4);
+  --ble-accent: #ffb779;
+  --ble-teal: #43e2d2;
+  --ble-copper: #cd7f32;
+}
+
+body {
+  background: var(--ble-bg);
+  color: var(--ble-text);
+  min-height: 100vh;
+}
+
+#auth-screen {
+  min-height: 100vh;
+  background: var(--ble-bg);
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+}
+
+.auth-card-wrap {
+  width: 100%;
+  max-width: 28rem;
+}
+
+.auth-brand {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.auth-brand img {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  border-radius: 12px;
+  margin: 0 auto 1rem;
+  display: block;
+}
+
+.auth-brand h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  color: var(--ble-accent);
+}
+
+.auth-brand p {
+  margin: 0 auto;
+  max-width: 20rem;
+  font-size: 0.875rem;
+  color: var(--ble-muted);
+  line-height: 1.5;
+}
+
+.auth-panel {
+  background: var(--ble-surface);
+  padding: 2rem;
+  border-radius: 12px;
+  border: 1px solid var(--ble-border);
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 0.625rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--ble-surface-2);
+  color: var(--ble-muted);
+}
+
+.auth-tab.is-active-login {
+  background: var(--ble-copper);
+  color: var(--ble-bg);
+}
+
+.auth-tab.is-active-register {
+  background: var(--ble-teal);
+  color: var(--ble-bg);
+}
+
+.auth-field {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--ble-bg);
+  color: var(--ble-text);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--ble-border);
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+.auth-field:focus {
+  outline: none;
+  border-color: var(--ble-accent);
+}
+
+.auth-btn {
+  width: 100%;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.auth-btn-login {
+  background: var(--ble-copper);
+  color: var(--ble-bg);
+}
+
+.auth-btn-register {
+  background: var(--ble-teal);
+  color: var(--ble-bg);
+}
+
+.auth-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.auth-msg {
+  margin-top: 1rem;
+  min-height: 1.25rem;
+  font-size: 0.875rem;
+}
+
+.auth-msg.is-error {
+  color: var(--ble-accent);
+}
+
+.auth-msg.is-ok {
+  color: var(--ble-teal);
+}
+
+.auth-hint {
+  font-size: 0.75rem;
+  color: rgba(229, 226, 225, 0.45);
+  margin-top: 0.5rem;
+}
+
+#app-shell {
+  min-height: 100vh;
+  display: flex;
+  background: var(--ble-bg);
+}
+
+#app-shell .app-main-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+#app-nav {
+  width: 14rem;
+  flex-shrink: 0;
+  padding: 1.25rem;
+  border-right: 1px solid var(--ble-border);
+  background: var(--ble-surface);
+}
+
+#app-shell header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--ble-border);
+  background: rgba(32, 26, 22, 0.8);
+}
+
+#auth-status {
+  font-size: 0.875rem;
+  color: var(--ble-muted);
+}
+
+#signout-btn {
+  background: var(--ble-surface-2);
+  color: var(--ble-accent);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--ble-border);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#main-content {
+  flex: 1;
+  padding: 1.5rem 2rem;
+  overflow: auto;
+  position: relative;
+}
+
+.nav-brand-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.nav-brand-btn img {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.nav-brand-btn span {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--ble-accent);
+}
+
+.nav-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--ble-muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+  margin-bottom: 0.25rem;
+}
+
+.nav-link.is-active {
+  background: rgba(255, 183, 121, 0.15);
+  color: var(--ble-accent);
+  font-weight: 600;
+}
+
+.nav-link:hover {
+  color: var(--ble-teal);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.page-eyebrow {
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ble-teal);
+  margin: 0 0 0.25rem;
+}
+
+.page-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--ble-accent);
+  margin: 0 0 0.5rem;
+}
+
+.page-lead {
+  color: var(--ble-muted);
+  margin: 0 0 1.5rem;
+  max-width: 42rem;
+}
+
+.panel {
+  background: var(--ble-surface);
+  border: 1px solid rgba(83, 68, 56, 0.3);
+  border-radius: 12px;
+  padding: 1rem;
+}

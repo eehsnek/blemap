@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node scripts/free-port.js 4000",
     "dev": "node --watch backend/server.js",
-    "start": "node backend/server.js",
+    "start": "node scripts/free-port.js 4000 && node backend/server.js",
     "test": "node --test tests/*.test.js"
   },
   "dependencies": {

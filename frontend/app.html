@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>BleMap</title>
+
+  <link rel="icon" href="/frontend/assets/logo.jpeg" type="image/jpeg">
+
+  <link rel="manifest" href="/frontend/manifest.json">
+
+  <meta name="theme-color" content="#131313">
+
+  <style>
+
+    html, body { margin: 0; min-height: 100%; background: #13100d; color: #e5e2e1; font-family: system-ui, -apple-system, sans-serif; }
+
+    #boot-screen { display: none; }
+
+    #auth-screen { display: block; min-height: 100vh; }
+
+    #app-shell { display: none; }
+
+    #boot-screen .boot-title { margin: 0; font-size: 0.875rem; letter-spacing: 0.25em; text-transform: uppercase; color: #43e2d2; }
+
+    #boot-screen .boot-sub { margin: 0; font-size: 0.875rem; color: rgba(229, 226, 225, 0.55); }
+
+    #js-error { display: none; position: fixed; bottom: 1rem; left: 1rem; right: 1rem; padding: 1rem; background: #3d1f1f; border: 1px solid #ffb779; border-radius: 8px; font-size: 0.875rem; z-index: 9999; }
+
+  </style>
+
+  <link rel="stylesheet" href="/frontend/app.css">
+
+  <link rel="stylesheet" href="/frontend/theme.css">
+
+  <script src="/config.js"></script>
+
+  <script>
+
+    (function () {
+
+      var host = location.hostname;
+
+      if ((host === "localhost" || host === "127.0.0.1") && location.port !== "4000") {
+
+        location.replace("http://" + host + ":4000" + location.pathname + location.search + location.hash);
+
+      }
+
+    })();
+
+  </script>
+
+</head>
+
+<body>
+
+  <div id="boot-screen" aria-live="polite">
+
+    <img src="/frontend/assets/logo.jpeg" alt="BleMap" width="72" height="72" style="width:72px;height:72px;object-fit:contain;border-radius:12px" />
+
+    <p class="boot-title">BleMap</p>
+
+    <p class="boot-sub">Starting…</p>
+
+  </div>
+
+
+
+  <div id="auth-screen">
+
+    <div class="auth-page">
+
+      <section class="auth-card-wrap">
+
+        <div class="auth-brand">
+
+          <img src="/frontend/assets/logo.jpeg" alt="BleMap" width="88" height="88" />
+
+          <h1>BleMap</h1>
+
+          <p>Find the fires nobody is putting out. Sign in to map problems, validate cases, and claim high-gap work.</p>
+
+        </div>
+
+        <div class="auth-panel">
+
+          <div class="auth-tabs">
+
+            <button type="button" id="tab-login" class="auth-tab is-active-login">Sign In</button>
+
+            <button type="button" id="tab-register" class="auth-tab">Register</button>
+
+          </div>
+
+          <div id="auth-forms">
+
+            <input id="signin-email" type="email" autocomplete="email" placeholder="Email" class="auth-field" />
+
+            <input id="signin-password" type="password" autocomplete="current-password" placeholder="Password" class="auth-field" />
+
+            <button type="button" id="signin-btn" class="auth-btn auth-btn-login">Sign In</button>
+
+          </div>
+
+          <div id="message-box" class="auth-msg"></div>
+
+        </div>
+
+      </section>
+
+    </div>
+
+  </div>
+
+
+
+  <div id="app-shell">
+
+    <aside id="app-nav"></aside>
+
+    <div class="app-main-column">
+
+      <header>
+
+        <p id="auth-status"></p>
+
+        <button type="button" id="signout-btn">Sign Out</button>
+
+      </header>
+
+      <main id="main-content"></main>
+
+    </div>
+
+  </div>
+
+
+
+  <div id="js-error" role="alert"></div>
+
+
+
+  <script>
+
+    window.__blemapShowError = function (msg) {
+
+      var el = document.getElementById("js-error");
+
+      if (el) {
+
+        el.textContent = msg;
+
+        el.style.display = "block";
+
+      }
+
+    };
+
+    window.addEventListener("error", function (e) {
+
+      if (e.message) window.__blemapShowError("App error: " + e.message + " — try http://localhost:4000 and hard refresh (Cmd+Shift+R).");
+
+    });
+
+  </script>
+
+  <script type="module" src="/frontend/auth-init.js?v=2"></script>
+  <script type="module" src="/frontend/app.js?v=2"></script>
+
+</body>
+
+</html>
+

@@ -1,31 +1,36 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createMemoryStore } from "../backend/store/memoryStore.js";
+import { CONFIRMATIONS_REQUIRED } from "../backend/lib/caseMetrics.js";
 
-test("listCases returns seed data", async () => {
+test("listMatrixCases returns only published", async () => {
   const store = createMemoryStore();
-  const cases = await store.listCases();
-  assert.ok(cases.length >= 4);
+  const matrix = await store.listMatrixCases();
+  assert.ok(matrix.every((c) => c.status === "published"));
 });
 
-test("submitCase creates new case", async () => {
+test("analyze and confirm creates pending case", async () => {
   const store = createMemoryStore();
-  const result = await store.submitCase({
-    text: "Completely unique quantum flux capacitor warranty issue",
+  const { draftId, isValid } = await store.analyzeSubmit({
+    text: "My unique zebra fence dispute with the city planning department refuses permits.",
+    userId: "u1",
   });
-  assert.equal(result.matched, false);
-  assert.ok(result.case.id);
+  assert.equal(isValid, true);
+  const result = await store.confirmSubmit({ draftId, userId: "u1" });
+  assert.equal(result.pending, true);
+  assert.equal(result.case.status, "pending");
 });
 
-test("togglePain increments and decrements", async () => {
+test("confirmCase publishes after threshold", async () => {
   const store = createMemoryStore();
-  const cases = await store.listCases();
-  const id = cases[0].id;
-  const userId = "user-test-1";
-
-  const first = await store.togglePain(id, userId);
-  assert.equal(first.state, "pained");
-
-  const second = await store.togglePain(id, userId);
-  assert.equal(second.state, "unpained");
+  const { draftId } = await store.analyzeSubmit({
+    text: "Another unique yak rental agreement dispute with hidden fees every month.",
+    userId: "u1",
+  });
+  const { case: c } = await store.confirmSubmit({ draftId, userId: "u1" });
+  for (let i = 0; i < CONFIRMATIONS_REQUIRED; i++) {
+    await store.confirmCase(c.id, `validator-${i}`);
+  }
+  const updated = await store.getCase(c.id);
+  assert.equal(updated.status, "published");
 });

@@ -1,0 +1,132 @@
+.stat-box {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #ffb779, #cd7f32);
+  color: #13100d;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: rgba(67, 226, 210, 0.15);
+  color: #43e2d2;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #e5e2e1;
+  border: 1px solid rgba(83, 68, 56, 0.4);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.btn-ghost:hover {
+  border-color: #43e2d2;
+  color: #43e2d2;
+}
+
+.main-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(19, 16, 13, 0.55);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.main-loading::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 2px solid rgba(67, 226, 210, 0.25);
+  border-top-color: #43e2d2;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  z-index: 11;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.onboarding-card {
+  background: linear-gradient(135deg, rgba(255, 183, 121, 0.08), rgba(67, 226, 210, 0.06));
+  border: 1px solid rgba(83, 68, 56, 0.35);
+  border-radius: 16px;
+  padding: 1.5rem;
+}
+
+.matrix-canvas .axis-line {
+  position: absolute;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(255, 183, 121, 0.25), rgba(67, 226, 210, 0.25));
+}
+
+.matrix-canvas .axis-h {
+  height: 1px;
+  left: 2rem;
+  right: 2rem;
+  top: 50%;
+}
+
+.matrix-canvas .axis-v {
+  width: 1px;
+  top: 2rem;
+  bottom: 2rem;
+  left: 50%;
+}
+
+.matrix-label {
+  position: absolute;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(229, 226, 225, 0.7);
+  pointer-events: none;
+}
+
+.matrix-label-x {
+  left: 1.5rem;
+  bottom: 0.75rem;
+}
+
+.matrix-label-y {
+  top: 0.75rem;
+  right: 1rem;
+}
+
+.matrix-bubble:hover {
+  transform: scale(1.05);
+  z-index: 2;
+}
+
+.hidden {
+  display: none !important;
+}

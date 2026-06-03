@@ -2,46 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Home Page</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  <script src="/config.js"></script>
+  <meta http-equiv="refresh" content="0;url=/frontend/app.html#/home">
+  <script>location.replace("/frontend/app.html#/home");</script>
+  <title>Redirecting…</title>
 </head>
-<body class="bg-[#13100d] text-white">
-  <div class="min-h-screen flex">
-    <nav class="bg-[#201a16] text-[#e5e2e1] w-52 min-h-screen p-5 flex flex-col space-y-3 border-r border-[#534438]/30">
-      <div class="text-xl font-bold text-white mb-6">BleMap</div>
-      <a href="home.html" class="font-semibold text-[#ffb779] hover:text-[#ffd1aa]">Home</a>
-      <a href="input.html" class="hover:text-[#43e2d2]">New Case</a>
-      <a href="profile.html" class="hover:text-[#43e2d2]">Profile</a>
-      <a href="caseMatrix.html" class="hover:text-[#43e2d2]">Case Matrix</a>
-    </nav>
-
-    <main class="flex-1 p-8">
-      <header class="flex items-center justify-between gap-4 mb-8">
-        <div>
-          <p class="text-sm uppercase tracking-wide text-[#43e2d2]">Living Archive</p>
-          <h1 class="text-3xl font-bold">Cases</h1>
-        </div>
-        <button id="signout-btn" class="bg-[#cd7f32] hover:bg-[#ffb779] text-[#13100d] font-semibold px-4 py-2 rounded transition">Sign Out</button>
-      </header>
-
-      <div id="message-box" class="mb-3 text-sm text-[#ffb779]"></div>
-      <div id="auth-status" class="mb-6 text-sm text-[#e5e2e1]/70">Not logged in</div>
-      <div id="profile"></div>
-
-      <section class="mb-10">
-        <h2 class="text-xl font-semibold mb-4 text-[#ffb779]">Case Map</h2>
-        <div id="cases" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3"></div>
-      </section>
-
-      <section>
-        <h2 class="text-xl font-semibold mb-4 text-[#43e2d2]">Pre-Case</h2>
-        <ul id="reddit-feed" class="space-y-3 text-[#e5e2e1]/80"></ul>
-      </section>
-    </main>
-  </div>
-
-  <script type="module" src="home.js" defer></script>
+<body>
+  <p><a href="/frontend/app.html#/home">Open BleMap</a></p>
 </body>
 </html>

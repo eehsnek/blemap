@@ -1,5 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { createMemoryStore } from "./memoryStore.js";
+import { analyzeSubmission } from "../ai/analyzeSubmission.js";
+import {
+  CONFIRMATIONS_REQUIRED,
+  enrichCase,
+} from "../lib/caseMetrics.js";
+import { scrapeAll } from "../scraper/reddit.js";
+import { randomUUID } from "node:crypto";
 
 function createSupabaseStore() {
   const url = process.env.SUPABASE_URL;
@@ -7,27 +14,67 @@ function createSupabaseStore() {
   if (!url || !key) return null;
 
   const supabase = createClient(url, key);
+  const drafts = new Map();
 
-  return {
+  async function fetchCasesQuery(filters = {}) {
+    let q = supabase.from("cases").select("*");
+    if (filters.status) q = q.eq("status", filters.status);
+    if (filters.publishedOnly) q = q.eq("status", "published");
+    const { data, error } = await q.order("created_at", { ascending: false });
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  async function enrichRow(c, userId) {
+    const { data: solves } = await supabase
+      .from("solves")
+      .select("*")
+      .eq("case_id", c.id);
+
+    let user_pained = false;
+    let user_confirmed = false;
+    if (userId) {
+      const { data: pv } = await supabase
+        .from("case_pain_votes")
+        .select("case_id")
+        .eq("case_id", c.id)
+        .eq("user_id", userId)
+        .maybeSingle();
+      user_pained = Boolean(pv);
+
+      const { data: cv } = await supabase
+        .from("case_confirmations")
+        .select("case_id")
+        .eq("case_id", c.id)
+        .eq("user_id", userId)
+        .maybeSingle();
+      user_confirmed = Boolean(cv);
+    }
+
+    return enrichCase(
+      { ...c, user_pained, user_confirmed, solves: solves ?? [] },
+      { solves: solves ?? [] }
+    );
+  }
+
+  const store = {
     mode: "supabase",
 
     async listCases(userId) {
-      const { data: cases, error } = await supabase.from("cases").select("*");
-      if (error) throw error;
+      const rows = await fetchCasesQuery();
+      return Promise.all(rows.map((c) => enrichRow(c, userId)));
+    },
 
-      let painedIds = new Set();
-      if (userId) {
-        const { data: votes } = await supabase
-          .from("case_pain_votes")
-          .select("case_id")
-          .eq("user_id", userId);
-        painedIds = new Set((votes ?? []).map((v) => v.case_id));
-      }
+    async listMatrixCases(userId) {
+      const rows = await fetchCasesQuery({ publishedOnly: true });
+      return Promise.all(rows.map((c) => enrichRow(c, userId)));
+    },
 
-      return (cases ?? []).map((c) => ({
-        ...c,
-        user_pained: painedIds.has(c.id),
-      }));
+    async listProspectorCases(userId) {
+      const all = await this.listMatrixCases(userId);
+      return all
+        .filter((c) => !c.claimed_by && c.lifecycle_state !== "green")
+        .sort((a, b) => b.gap_score - a.gap_score);
     },
 
     async getCase(id) {
@@ -35,34 +82,98 @@ function createSupabaseStore() {
         .from("cases")
         .select("*")
         .eq("id", id)
-        .single();
-      if (error) return null;
-
-      const { data: solves } = await supabase
-        .from("solves")
-        .select("*")
-        .eq("case_id", id)
-        .order("created_at", { ascending: false });
-
-      return { ...c, solves: solves ?? [] };
+        .maybeSingle();
+      if (error || !c) return null;
+      return enrichRow(c, null);
     },
 
-    async submitCase({ text }) {
-      const topic =
-        text.split(/\s+/).slice(0, 5).join(" ").slice(0, 80) || "New case";
+    async analyzeSubmit({ text, userId }) {
+      const rows = await fetchCasesQuery();
+      const analysis = await analyzeSubmission(text, rows);
+      const draftId = randomUUID();
+      drafts.set(draftId, { id: draftId, raw_input: text, user_id: userId, analysis });
+      return { draftId, ...analysis };
+    },
+
+    async confirmSubmit({ draftId, userId, mergeIntoCaseId }) {
+      const draft = drafts.get(draftId);
+      if (!draft) return { error: "Draft not found", status: 404 };
+      const { analysis } = draft;
+      if (!analysis.isValid) {
+        return { error: analysis.rejectionMessage, status: 400 };
+      }
+
+      if (mergeIntoCaseId || analysis.isDuplicate) {
+        const id = mergeIntoCaseId || analysis.duplicateCaseId;
+        const c = await this.getCase(id);
+        if (!c) return { error: "Case not found", status: 404 };
+        await supabase
+          .from("cases")
+          .update({ pain_count: c.pain_count + 1 })
+          .eq("id", id);
+        drafts.delete(draftId);
+        return { matched: true, case: await this.getCase(id) };
+      }
+
+      const s = analysis.structured;
       const { data, error } = await supabase
         .from("cases")
         .insert({
-          topic,
-          summary: text.slice(0, 500),
-          pain_count: 1,
+          topic: s.topic,
+          summary: s.summary,
+          pain_count: Math.max(1, Math.round((s.pain_level ?? 0.5) * 10)),
           lifecycle_state: "grey",
+          status: "pending",
+          confirmation_count: 0,
+          domain: s.domain,
+          category: s.category,
           mode: "ai-assisted",
+          raw_input: draft.raw_input,
+          source: "user",
+          cta_text: s.cta_text,
+          submitted_by: userId,
         })
         .select()
         .single();
       if (error) throw error;
-      return { matched: false, case: data };
+      drafts.delete(draftId);
+      return {
+        matched: false,
+        pending: true,
+        case: await enrichRow(data, userId),
+        message: `Needs ${CONFIRMATIONS_REQUIRED} confirmations to publish.`,
+      };
+    },
+
+    async confirmCase(caseId, userId) {
+      const { error: insErr } = await supabase
+        .from("case_confirmations")
+        .insert({ case_id: caseId, user_id: userId });
+      if (insErr?.code === "23505") {
+        return { error: "Already confirmed", status: 409 };
+      }
+      if (insErr) throw insErr;
+
+      const { data: c } = await supabase
+        .from("cases")
+        .select("confirmation_count, status")
+        .eq("id", caseId)
+        .single();
+      const next = (c?.confirmation_count ?? 0) + 1;
+      const status =
+        c?.status === "pending" && next >= CONFIRMATIONS_REQUIRED
+          ? "published"
+          : c?.status;
+      await supabase
+        .from("cases")
+        .update({ confirmation_count: next, status })
+        .eq("id", caseId);
+      return {
+        confirmation_count: next,
+        status,
+        published: status === "published",
+        case: await this.getCase(caseId),
+      };
     },
 
     async togglePain(caseId, userId) {
@@ -106,7 +217,9 @@ function createSupabaseStore() {
     async toggleClaim(caseId, userId) {
       const c = await this.getCase(caseId);
       if (!c) return { error: "Case not found", status: 404 };
-
+      if (c.status !== "published") {
+        return { error: "Only published cases can be claimed", status: 400 };
+      }
       if (c.claimed_by === userId) {
         await supabase
           .from("cases")
@@ -114,11 +227,7 @@ function createSupabaseStore() {
           .eq("id", caseId);
         return { state: "unclaimed" };
       }
-
-      if (c.claimed_by) {
-        return { error: "Case already claimed", status: 409 };
-      }
-
+      if (c.claimed_by) return { error: "Already claimed", status: 409 };
       await supabase
         .from("cases")
         .update({ claimed_by: userId, lifecycle_state: "orange" })
@@ -133,36 +242,29 @@ function createSupabaseStore() {
         .select()
         .single();
       if (error) throw error;
-
       const c = await this.getCase(caseId);
-      if (c) {
-        await supabase
-          .from("cases")
-          .update({ solve_count: (c.solve_count ?? 0) + 1 })
-          .eq("id", caseId);
-      }
+      await supabase
+        .from("cases")
+        .update({ solve_count: (c?.solve_count ?? 0) + 1 })
+        .eq("id", caseId);
       return { solve };
     },
 
     async acceptSolve(solveId, userId) {
       const { data: solve } = await supabase
         .from("solves")
-        .select("*, cases(claimed_by)")
+        .select("*, cases(claimed_by, id)")
         .eq("id", solveId)
         .single();
       if (!solve) return { error: "Solution not found", status: 404 };
       if (solve.cases?.claimed_by !== userId) {
-        return { error: "Only the claimant can accept solutions", status: 403 };
+        return { error: "Only claimant can accept", status: 403 };
       }
-
       await supabase
         .from("solves")
         .update({ accepted: false })
         .eq("case_id", solve.case_id);
-      await supabase
-        .from("solves")
-        .update({ accepted: true })
-        .eq("id", solveId);
+      await supabase.from("solves").update({ accepted: true }).eq("id", solveId);
       await supabase
         .from("cases")
         .update({ lifecycle_state: "green" })
@@ -178,13 +280,9 @@ function createSupabaseStore() {
         .single();
       if (!solve) return { error: "Solution not found", status: 404 };
       if (solve.cases?.claimed_by !== userId) {
-        return { error: "Only the claimant can unaccept solutions", status: 403 };
+        return { error: "Only claimant can unaccept", status: 403 };
       }
-
-      await supabase
-        .from("solves")
-        .update({ accepted: false })
-        .eq("id", solveId);
+      await supabase.from("solves").update({ accepted: false }).eq("id", solveId);
       await supabase
         .from("cases")
         .update({ lifecycle_state: "orange" })
@@ -192,15 +290,73 @@ function createSupabaseStore() {
       return { solve };
     },
 
+    async markSolved(caseId, userId, outcomeUrl, outcomeNote) {
+      const c = await this.getCase(caseId);
+      if (!c || c.claimed_by !== userId) {
+        return { error: "Only claimant can mark solved", status: 403 };
+      }
+      await supabase
+        .from("cases")
+        .update({
+          lifecycle_state: "green",
+          outcome_url: outcomeUrl,
+          outcome_note: outcomeNote,
+        })
+        .eq("id", caseId);
+      return { case: await this.getCase(caseId) };
+    },
+
     async getPrecaseFeed() {
       const { data } = await supabase
         .from("precase")
-        .select("title, permalink")
+        .select("title, permalink, subreddit")
         .order("created_at", { ascending: false })
         .limit(10);
       return { inserted: data ?? [] };
     },
+
+    async runScrapePipeline() {
+      const posts = await scrapeAll(2);
+      let promoted = 0;
+      for (const post of posts.slice(0, 6)) {
+        await supabase.from("precase").insert({
+          title: post.title,
+          permalink: post.permalink,
+          subreddit: post.subreddit,
+        });
+        const text = `${post.title}. ${post.selftext}`;
+        const rows = await fetchCasesQuery();
+        const analysis = await analyzeSubmission(text, rows);
+        if (!analysis.isValid) continue;
+        const s = analysis.structured;
+        const { error } = await supabase.from("cases").insert({
+          topic: s.topic,
+          summary: s.summary,
+          pain_count: 2,
+          status: "published",
+          confirmation_count: CONFIRMATIONS_REQUIRED,
+          domain: s.domain,
+          category: s.category,
+          mode: "reddit",
+          subreddits: [post.subreddit],
+          permalinks: [`https://reddit.com${post.permalink}`],
+          source: "reddit",
+          raw_input: text,
+        });
+        if (!error) promoted += 1;
+      }
+      return { scraped: posts.length, promoted };
+    },
+
+    async submitCase({ text }) {
+      return store.confirmSubmit({
+        draftId: (await store.analyzeSubmit({ text })).draftId,
+        userId: null,
+      });
+    },
   };
+
+  return store;
 }
 
 let store;

@@ -2,39 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Submit Case</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  <script src="/config.js"></script>
+  <script>location.replace("/frontend/app.html#/submit");</script>
+  <title>Redirecting…</title>
 </head>
-<body class="min-h-screen bg-[#13100d] text-white flex">
-  <nav class="bg-[#201a16] text-[#e5e2e1] w-52 min-h-screen p-5 flex flex-col space-y-3 border-r border-[#534438]/30">
-    <div class="text-xl font-bold text-white mb-6">BleMap</div>
-    <a href="home.html" class="hover:text-[#43e2d2]">Home</a>
-    <a href="input.html" class="font-semibold text-[#ffb779]">New Case</a>
-    <a href="caseMatrix.html" class="hover:text-[#43e2d2]">Case Matrix</a>
-  </nav>
-
-  <main class="flex-1 p-8 max-w-2xl">
-    <p class="text-sm uppercase tracking-wide text-[#43e2d2] mb-2">Submit</p>
-    <h1 class="text-3xl font-bold mb-2">Describe your problem</h1>
-    <p class="text-[#e5e2e1]/70 mb-6">In your own words — no structured form required.</p>
-
-    <textarea
-      id="post-input"
-      class="w-full min-h-[160px] bg-[#13100d] text-white placeholder-[#e5e2e1]/45 px-4 py-3 rounded border border-[#534438]/40 focus:outline-none focus:border-[#ffb779] mb-4"
-      placeholder="Describe your problem in your own words..."
-    ></textarea>
-    <button
-      id="submit-post"
-      class="bg-[#cd7f32] hover:bg-[#ffb779] text-[#13100d] font-semibold px-4 py-2 rounded transition"
-    >
-      Submit
-    </button>
-
-    <div id="case-details" class="mt-8"></div>
-  </main>
-
-  <script type="module" src="input.js"></script>
-</body>
+<body><a href="/frontend/app.html#/submit">Open BleMap</a></body>
 </html>

@@ -1,0 +1,17 @@
+{
+  "name": "BleMap",
+  "short_name": "BleMap",
+  "description": "Problem intelligence matrix for builders and prospectors",
+  "start_url": "/frontend/app.html",
+  "display": "standalone",
+  "background_color": "#131313",
+  "theme_color": "#131313",
+  "icons": [
+    {
+      "src": "/frontend/assets/logo.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}
