@@ -63,7 +63,22 @@ function showLoginForm() {
     btn.textContent = "Signing in…";
     msg("");
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    let data;
+    let error;
+    try {
+      ({ data, error } = await supabase.auth.signInWithPassword({ email, password }));
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = "Sign In";
+      const m = err?.message || String(err);
+      if (/load failed|failed to fetch|network/i.test(m)) {
+        return msg(
+          "Cannot reach Supabase. Use http://localhost:4000, check your network, and restart npm run dev.",
+          true
+        );
+      }
+      return msg(m, true);
+    }
 
     btn.disabled = false;
     btn.textContent = "Sign In";

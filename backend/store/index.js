@@ -5,8 +5,9 @@ import {
   CONFIRMATIONS_REQUIRED,
   enrichCase,
 } from "../lib/caseMetrics.js";
-import { scrapeAll } from "../scraper/reddit.js";
 import { randomUUID } from "node:crypto";
+import { createSupabaseIngestionAdapter } from "../ingestion/adapters/supabaseAdapter.js";
+import { runScrapeJob } from "../ingestion/runScrapeJob.js";
 
 function createSupabaseStore() {
   const url = process.env.SUPABASE_URL;
@@ -15,6 +16,10 @@ function createSupabaseStore() {
 
   const supabase = createClient(url, key);
   const drafts = new Map();
+
+  function ingestionAdapter() {
+    return createSupabaseIngestionAdapter(supabase, fetchCasesQuery);
+  }
 
   async function fetchCasesQuery(filters = {}) {
     let q = supabase.from("cases").select("*");
@@ -307,45 +312,17 @@ function createSupabaseStore() {
     },
 
     async getPrecaseFeed() {
-      const { data } = await supabase
-        .from("precase")
-        .select("title, permalink, subreddit")
-        .order("created_at", { ascending: false })
-        .limit(10);
-      return { inserted: data ?? [] };
+      const inserted = await ingestionAdapter().listPrecaseFeed(10);
+      return { inserted };
+    },
+
+    async getIngestionStatus() {
+      const lastRun = await ingestionAdapter().getLastScrapeRun();
+      return { lastRun };
     },
 
     async runScrapePipeline() {
-      const posts = await scrapeAll(2);
-      let promoted = 0;
-      for (const post of posts.slice(0, 6)) {
-        await supabase.from("precase").insert({
-          title: post.title,
-          permalink: post.permalink,
-          subreddit: post.subreddit,
-        });
-        const text = `${post.title}. ${post.selftext}`;
-        const rows = await fetchCasesQuery();
-        const analysis = await analyzeSubmission(text, rows);
-        if (!analysis.isValid) continue;
-        const s = analysis.structured;
-        const { error } = await supabase.from("cases").insert({
-          topic: s.topic,
-          summary: s.summary,
-          pain_count: 2,
-          status: "published",
-          confirmation_count: CONFIRMATIONS_REQUIRED,
-          domain: s.domain,
-          category: s.category,
-          mode: "reddit",
-          subreddits: [post.subreddit],
-          permalinks: [`https://reddit.com${post.permalink}`],
-          source: "reddit",
-          raw_input: text,
-        });
-        if (!error) promoted += 1;
-      }
-      return { scraped: posts.length, promoted };
+      return runScrapeJob(ingestionAdapter());
     },
 
     async submitCase({ text }) {

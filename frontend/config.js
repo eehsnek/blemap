@@ -15,8 +15,20 @@ const defaults = {
 const runtime =
   (typeof window !== "undefined" && window.__BLEMAP_CONFIG) || defaults;
 
+function isPlaceholder(value) {
+  if (!value) return true;
+  const v = String(value).trim().toLowerCase();
+  return (
+    !v ||
+    v.includes("your-project") ||
+    v.includes("your-anon-key") ||
+    v.includes("example.com")
+  );
+}
+
 function pick(value, fallback) {
-  return value && String(value).trim() ? value : fallback;
+  if (isPlaceholder(value)) return fallback;
+  return String(value).trim();
 }
 
 export const API_BASE = pick(runtime.apiBase, defaults.apiBase);

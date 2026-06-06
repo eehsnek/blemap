@@ -1,7 +1,7 @@
 const listeners = new Set();
 
 const ROUTE_TITLES = {
-  home: "Home",
+  home: "Case Map",
   submit: "Submit",
   matrix: "Matrix",
   prospector: "Prospector",

@@ -159,8 +159,27 @@ Copy `.env.example` to `.env`:
 | `PORT` | Default `4000` |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Auth + `/config.js` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Persist cases in Supabase instead of memory |
-| `GEMINI_API_KEY` | Real AI on submit (else heuristic) |
-| `CONFIRMATIONS_REQUIRED` | Default `5` |
+| `GEMINI_API_KEY` | AI for submit + **required for production scrape** ([Google AI Studio](https://aistudio.google.com/apikey)) |
+| `GEMINI_MODEL` | Default `gemini-2.0-flash` |
+| `CRON_SECRET` | Secures `POST /api/scrape/run` (Vercel cron uses Bearer token when set) |
+| `REDDIT_SUBREDDITS` | Comma-separated subreddits for automation |
+| `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | **Required for scrape** — [Reddit app prefs](https://www.reddit.com/prefs/apps) |
+| `REDDIT_USERNAME` / `REDDIT_PASSWORD` | For **script**-type apps only (your Reddit login) |
+| `REDDIT_USER_AGENT` | e.g. `web:BleMap:v1.0.0 (by /u/YourUsername)` |
+| `SCRAPE_PUBLISH_MODE` | `auto` (publish valid scrapes) or `pending` (community confirm first) |
+| `CONFIRMATIONS_REQUIRED` | Default `5` (user submit only) |
+
+### Automation (AI + Reddit)
+
+1. Set `GEMINI_API_KEY` in `.env` (heuristic fallback works locally without it; production scrape returns 503 without it).
+2. Optional: set `CRON_SECRET` — then manual runs use `npm run scrape` or Prospector while signed in.
+3. **Local:** `npm run dev` in one terminal, `npm run scrape` in another.
+4. **Vercel:** set `CRON_SECRET`, `GEMINI_API_KEY`, and Supabase keys. Cron runs every 6h (`vercel.json`). Run [`database/migrations/004_precase_automation.sql`](database/migrations/004_precase_automation.sql) in Supabase for precase status + scrape logs.
+5. Check last run: `GET /api/ingestion/status`
+
+**Scrape without Reddit** — By default, ingest uses **Hacker News** (Ask + New stories, no API key). Prospector → **Run ingest scrape**, or `npm run scrape`.
+
+**Reddit (optional)** — If you add `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET`, Reddit is included automatically. For a **script** app, also set `REDDIT_USERNAME` and `REDDIT_PASSWORD`. Override sources with `SCRAPE_SOURCES=hackernews` or `SCRAPE_SOURCES=hackernews,reddit`.
 
 ### Sign-up & auth
 
@@ -183,7 +202,7 @@ Auth runs in the browser against **Supabase** (defaults in `shared/supabasePubli
 | AI submit + confirm-before-post | ✅ |
 | Community validation → matrix | ✅ |
 | Gap score + matrix | ✅ |
-| Reddit scrape | ✅ |
+| Reddit scrape + scheduled automation | ✅ |
 | Prospector view | ✅ |
 
 Docs: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/ERD.md`](docs/ERD.md) · [`docs/DEMO.md`](docs/DEMO.md)

@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { analyzeSubmission } from "../ai/analyzeSubmission.js";
 import { CONFIRMATIONS_REQUIRED, enrichCase } from "../lib/caseMetrics.js";
-import { scrapeAll } from "../scraper/reddit.js";
+import { createMemoryIngestionAdapter } from "../ingestion/adapters/memoryAdapter.js";
+import { runScrapeJob } from "../ingestion/runScrapeJob.js";
 
 function seedCases() {
   const base = [
@@ -73,6 +74,17 @@ export function createMemoryStore() {
   const solves = [];
   const drafts = new Map();
   const precase = [];
+  const scrapeRuns = [];
+  const seenPermalinks = new Set();
+
+  function ingestionAdapter() {
+    return createMemoryIngestionAdapter({
+      cases,
+      precase,
+      seenPermalinks,
+      scrapeRuns,
+    });
+  }
 
   function findCase(id) {
     return cases.find((c) => c.id === id) ?? null;
@@ -318,60 +330,17 @@ export function createMemoryStore() {
     },
 
     async getPrecaseFeed() {
-      return { inserted: precase.slice(-10) };
+      const inserted = await ingestionAdapter().listPrecaseFeed(10);
+      return { inserted };
+    },
+
+    async getIngestionStatus() {
+      const lastRun = await ingestionAdapter().getLastScrapeRun();
+      return { lastRun };
     },
 
     async runScrapePipeline() {
-      const posts = await scrapeAll(2);
-      const promoted = [];
-
-      for (const post of posts.slice(0, 8)) {
-        precase.push({
-          title: post.title,
-          permalink: post.permalink,
-          subreddit: post.subreddit,
-        });
-
-        const text = `${post.title}. ${post.selftext}`.trim();
-        const analysis = await analyzeSubmission(text, cases);
-        if (!analysis.isValid) continue;
-
-        const existing = cases.find(
-          (c) =>
-            c.topic.toLowerCase() ===
-            analysis.structured.topic.toLowerCase().slice(0, 40)
-        );
-        if (existing) {
-          existing.pain_count += 1;
-          continue;
-        }
-
-        const s = analysis.structured;
-        const row = {
-          id: randomUUID(),
-          topic: s.topic,
-          summary: s.summary,
-          pain_count: 2,
-          solve_count: 0,
-          lifecycle_state: "grey",
-          claimed_by: null,
-          mode: "reddit",
-          subreddits: [post.subreddit],
-          permalinks: [`https://reddit.com${post.permalink}`],
-          status: "published",
-          confirmation_count: CONFIRMATIONS_REQUIRED,
-          domain: s.domain,
-          category: s.category,
-          raw_input: text,
-          source: "reddit",
-          cta_text: s.cta_text,
-          created_at: new Date().toISOString(),
-        };
-        cases.push(row);
-        promoted.push(row);
-      }
-
-      return { scraped: posts.length, promoted: promoted.length, inserted: precase };
+      return runScrapeJob(ingestionAdapter());
     },
 
     /** @deprecated direct submit — use analyze + confirm */

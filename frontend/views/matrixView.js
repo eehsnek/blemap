@@ -1,28 +1,62 @@
 import { apiFetch } from "../api.js";
 import { navigate } from "../router.js";
+import { escapeHtml } from "../util.js";
 
-const BUBBLE_SIZE = 70;
-const PADDING = 40;
+const INSET = { top: 20, right: 28, bottom: 20, left: 20 };
+const MIN_GAP = 10;
 let resizeHandler = null;
 
 export function mount(container) {
   container.innerHTML = `
-    <div>
-      <p class="text-sm uppercase tracking-wide text-[#43e2d2] mb-1">Case Matrix</p>
-      <h1 class="text-3xl font-bold mb-2 text-[#ffb779]">Pressure vs. Progress</h1>
-      <p class="text-[#e5e2e1]/70 mb-6 max-w-2xl">Published cases only. Y = pain level, X = solution existence. Click a node for details.</p>
-      <div class="grid gap-6 lg:grid-cols-[240px_1fr]">
-        <div class="bg-[#201a16] rounded-xl p-4 border border-[#534438]/30 text-sm space-y-3">
-          <p><span class="inline-block w-3 h-3 rounded-full bg-[#7c7c7c] mr-2"></span>Unclaimed</p>
-          <p><span class="inline-block w-3 h-3 rounded-full bg-gradient-to-br from-[#ffb779] to-[#cd7f32] mr-2"></span>Claimed</p>
-          <p><span class="inline-block w-3 h-3 rounded-full bg-gradient-to-br from-[#43e2d2] to-[#00c6b6] mr-2"></span>Resolved</p>
-        </div>
-        <div class="relative rounded-2xl overflow-hidden bg-[#161414]/90 border border-[#534438]/20" style="min-height:480px">
-          <div id="matrix" class="matrix-canvas relative w-full h-[480px]">
-            <div class="axis-line axis-h"></div>
-            <div class="axis-line axis-v"></div>
-            <p class="matrix-label matrix-label-x">Solution existence →</p>
-            <p class="matrix-label matrix-label-y">Pain level →</p>
+    <div class="matrix-page">
+      <header class="matrix-page-header">
+        <p class="page-eyebrow">Case Matrix</p>
+        <h1 class="page-title page-title--serif">Pressure vs. Progress</h1>
+        <p class="page-lead">
+          Visualize active case momentum across pain and solve counts. Each node is a living problem,
+          framed within the bronze/patina system.
+        </p>
+      </header>
+      <div class="matrix-layout">
+        <aside class="matrix-legend">
+          <h2 class="matrix-legend__title">Legend &amp; Narrative</h2>
+          <div class="matrix-legend__item">
+            <div class="matrix-legend__item-head">
+              <span class="legend-dot legend-dot--grey"></span>
+              Unresolved
+            </div>
+            <p>Cases still waiting for traction.</p>
+          </div>
+          <div class="matrix-legend__item">
+            <div class="matrix-legend__item-head">
+              <span class="legend-dot legend-dot--orange"></span>
+              Claimed
+            </div>
+            <p>Bronze-problem nodes that teams are engaging.</p>
+          </div>
+          <div class="matrix-legend__item">
+            <div class="matrix-legend__item-head">
+              <span class="legend-dot legend-dot--green"></span>
+              Resolved
+            </div>
+            <p>Patina-solution nodes with progress built in.</p>
+          </div>
+          <p class="matrix-legend__footer">
+            <strong>The Matrix:</strong> X axis maps solve count, Y axis maps pain intensity.
+            Larger nodes mean greater impact and urgency.
+          </p>
+        </aside>
+        <div class="matrix-frame">
+          <span class="matrix-frame__expand" aria-hidden="true">⤢</span>
+          <div class="matrix-canvas">
+            <p class="matrix-label matrix-label-y">Pain intensity →</p>
+            <div class="matrix-plot-zone" id="matrix-plot-zone">
+              <div class="matrix-plot-inner" id="matrix-plot">
+                <div class="axis-line axis-h"></div>
+                <div class="axis-line axis-v"></div>
+              </div>
+            </div>
+            <p class="matrix-label matrix-label-x">Solve Count →</p>
           </div>
         </div>
       </div>
@@ -37,50 +71,111 @@ export function mount(container) {
   };
   window.addEventListener("resize", resizeHandler);
 
-  return () => {
-    window.removeEventListener("resize", resizeHandler);
+  return () => window.removeEventListener("resize", resizeHandler);
+}
+
+function bubbleLabel(topic, size) {
+  const t = (topic || "Case").trim();
+  if (t.length <= 36 || size >= 110) return t;
+  const words = t.split(/\s+/).filter(Boolean);
+  if (size >= 95) return words.slice(0, 6).join(" ");
+  if (size >= 82) return words.slice(0, 4).join(" ");
+  if (size >= 72) return words.slice(0, 3).join(" ");
+  return words.slice(0, 2).join(" ") || t.slice(0, 12);
+}
+
+function bubbleSize(c) {
+  const gap = Number(c.gap_score ?? 40) / 100;
+  const pain = Math.min(Number(c.pain_level ?? 0.35), 1);
+  return Math.round(78 + gap * 48 + pain * 24);
+}
+
+function bubbleClass(c) {
+  const state = (c.lifecycle_state || "grey").toLowerCase();
+  if (state === "green") return "matrix-bubble--green";
+  if (state === "orange") return "matrix-bubble--orange";
+  return "matrix-bubble--grey";
+}
+
+function plotMetrics(plotEl) {
+  const w = plotEl.clientWidth;
+  const h = plotEl.clientHeight;
+  return {
+    innerW: Math.max(w - INSET.left - INSET.right, 100),
+    innerH: Math.max(h - INSET.top - INSET.bottom, 100),
   };
 }
 
-function renderBubble(c, matrix, maxX, maxY) {
+function basePosition(c, plotEl, maxSolve) {
+  const { innerW, innerH } = plotMetrics(plotEl);
+  const size = bubbleSize(c);
+
+  const solves = Number(c.solve_count ?? 0);
+  let xNorm = maxSolve > 0 ? solves / maxSolve : 0;
+  if (c.has_solution || c.lifecycle_state === "green") {
+    xNorm = Math.max(xNorm, 0.9);
+  } else {
+    xNorm = 0.05 + xNorm * 0.85;
+  }
+
+  const painNorm = Math.min(Math.max(Number(c.pain_level ?? 0.15), 0.08), 1);
+
+  let x = INSET.left + xNorm * (innerW - size);
+  let y = INSET.top + (1 - painNorm) * (innerH - size);
+
+  x = Math.max(INSET.left, Math.min(x, INSET.left + innerW - size));
+  y = Math.max(INSET.top, Math.min(y, INSET.top + innerH - size));
+
+  return { x, y, size, innerW, innerH };
+}
+
+function circlesOverlap(x1, y1, s1, x2, y2, s2, gap) {
+  const dist = Math.hypot(x1 + s1 / 2 - (x2 + s2 / 2), y1 + s1 / 2 - (y2 + s2 / 2));
+  return dist < s1 / 2 + s2 / 2 + gap;
+}
+
+function resolveCollision(x, y, size, placed, bounds) {
+  let cx = x;
+  let cy = y;
+  for (let attempt = 0; attempt < 28; attempt++) {
+    const hit = placed.some((p) =>
+      circlesOverlap(cx, cy, size, p.x, p.y, p.size, MIN_GAP)
+    );
+    if (!hit) return { x: cx, y: cy };
+    const angle = ((attempt * 137.5) % 360) * (Math.PI / 180);
+    const r = 14 + attempt * 8;
+    cx = Math.max(INSET.left, Math.min(x + Math.cos(angle) * r, bounds.maxX - size));
+    cy = Math.max(INSET.top, Math.min(y + Math.sin(angle) * r, bounds.maxY - size));
+  }
+  return { x: cx, y: cy };
+}
+
+function renderBubble(c, pos) {
+  const { x, y, size } = pos;
   const bubble = document.createElement("button");
   bubble.type = "button";
-  const state = (c.lifecycle_state || "").toLowerCase();
-
-  let background = "rgba(179, 176, 171, 0.18)";
-  let textColor = "#e5e2e1";
-  if (state === "orange") {
-    background = "linear-gradient(135deg, #ffb779 0%, #cd7f32 100%)";
-    textColor = "#13100d";
-  }
-  if (state === "green") {
-    background = "linear-gradient(135deg, #43e2d2 0%, #00c6b6 100%)";
-    textColor = "#13100d";
-  }
-
-  const xVal = c.has_solution ? 1 : 0.15 + (Number(c.solve_count ?? 0) / maxX) * 0.85;
-  const yVal = Number(c.pain_level ?? 0.5);
-  const w = matrix.clientWidth;
-  const h = matrix.clientHeight;
-  const size = BUBBLE_SIZE + Math.min(yVal, 1) * 36;
-  const x = PADDING + Math.min(xVal, 1) * (w - size - PADDING * 2);
-  const y = PADDING + (1 - Math.min(yVal, 1)) * (h - size - PADDING * 2);
-
   bubble.setAttribute("data-bubble", "true");
-  bubble.className = "matrix-bubble absolute rounded-full flex items-center justify-center text-center cursor-pointer border-0";
-  bubble.style.cssText = `width:${size}px;height:${size}px;left:${x}px;top:${y}px;background:${background};color:${textColor};font-size:0.72rem;font-weight:600;padding:4px`;
-  bubble.textContent = (c.topic || "").slice(0, 22);
-  bubble.title = `${c.topic}\nGap: ${c.gap_score}`;
-  bubble.addEventListener("click", () => navigate("case", { id: c.id }));
+  bubble.className = `matrix-bubble ${bubbleClass(c)}`;
+  bubble.style.width = `${size}px`;
+  bubble.style.height = `${size}px`;
+  bubble.style.left = `${x}px`;
+  bubble.style.top = `${y}px`;
 
+  const fontSize = Math.max(0.62, Math.min(0.78, size / 120));
+  const label = bubbleLabel(c.topic, size);
+  bubble.innerHTML = `<span class="matrix-bubble__text" style="font-size:${fontSize}rem">${escapeHtml(label)}</span>`;
+  bubble.title = `${c.topic}\nGap: ${c.gap_score ?? "—"} · Pain: ${c.pain_count ?? 0} · Solves: ${c.solve_count ?? 0}`;
+  bubble.addEventListener("click", () => navigate("case", { id: c.id }));
   return bubble;
 }
 
 async function renderMatrix() {
-  const matrix = document.getElementById("matrix");
-  if (!matrix) return;
+  const plot = document.getElementById("matrix-plot");
+  const zone = document.getElementById("matrix-plot-zone");
+  if (!plot) return;
 
-  matrix.querySelectorAll("[data-bubble], .matrix-empty").forEach((el) => el.remove());
+  plot.querySelectorAll("[data-bubble]").forEach((el) => el.remove());
+  zone?.querySelectorAll(".matrix-empty")?.forEach((el) => el.remove());
 
   let cases = [];
   try {
@@ -91,22 +186,31 @@ async function renderMatrix() {
 
   if (!cases.length) {
     const empty = document.createElement("div");
-    empty.className =
-      "matrix-empty absolute inset-0 flex flex-col items-center justify-center text-center px-6 gap-4";
+    empty.className = "matrix-empty";
     empty.innerHTML = `
-      <p class="text-[#e5e2e1]/70 max-w-sm">No published cases on the matrix yet. Cases appear here after community validation.</p>
-      <div class="flex flex-wrap gap-2 justify-center">
-        <button type="button" class="btn-primary" data-goto-home>Go to Home</button>
-        <button type="button" class="btn-secondary" data-goto-submit>Submit a case</button>
-      </div>
-    `;
+      <p>No published cases on the matrix yet.</p>
+      <div class="btn-row">
+        <button type="button" class="btn-primary" data-goto-home>Case Map</button>
+        <button type="button" class="btn-secondary" data-goto-submit">Submit</button>
+      </div>`;
     empty.querySelector("[data-goto-home]")?.addEventListener("click", () => navigate("home"));
     empty.querySelector("[data-goto-submit]")?.addEventListener("click", () => navigate("submit"));
-    matrix.appendChild(empty);
+    zone?.appendChild(empty);
     return;
   }
 
-  const maxX = Math.max(...cases.map((c) => c.solve_count), 1);
-  const maxY = Math.max(...cases.map((c) => c.pain_level ?? 0), 0.01);
-  cases.forEach((c) => matrix.appendChild(renderBubble(c, matrix, maxX, maxY)));
+  const maxSolve = Math.max(...cases.map((c) => Number(c.solve_count) || 0), 1);
+  cases.sort((a, b) => bubbleSize(b) - bubbleSize(a));
+  const placed = [];
+
+  for (const c of cases) {
+    const base = basePosition(c, plot, maxSolve);
+    const bounds = {
+      maxX: INSET.left + base.innerW,
+      maxY: INSET.top + base.innerH,
+    };
+    const { x, y } = resolveCollision(base.x, base.y, base.size, placed, bounds);
+    placed.push({ x, y, size: base.size });
+    plot.appendChild(renderBubble(c, { x, y, size: base.size }));
+  }
 }

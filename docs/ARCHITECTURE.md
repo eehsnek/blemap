@@ -42,10 +42,11 @@ flowchart LR
 1. `GET /api/cases?view=prospector` — unclaimed published cases sorted by **gap score**.
 2. Claim → propose solutions → accept → mark solved.
 
-### Scrape
+### Scrape (automation)
 
-1. Cron or manual `POST /api/scrape/run`.
-2. Reddit public JSON → AI validate → insert **published** cases (seeded confirmations).
+1. Cron or manual `POST /api/scrape/run` (secured with `CRON_SECRET` or signed-in user).
+2. [`backend/ingestion/runScrapeJob.js`](../backend/ingestion/runScrapeJob.js) → **Hacker News** (default, free) and optional Reddit → [`promoteSignal`](../backend/ingestion/promoteSignal.js) → Gemini/heuristic → precase row + **published** case (`SCRAPE_PUBLISH_MODE=auto`).
+3. `GET /api/ingestion/status` — last `scrape_runs` summary.
 
 ## Security
 

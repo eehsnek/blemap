@@ -49,16 +49,43 @@ export async function mount(container) {
   return () => {};
 }
 
+function precaseStatusLabel(status) {
+  const labels = {
+    pending: "Awaiting AI",
+    promoted: "On matrix",
+    rejected: "Rejected",
+    duplicate: "Merged",
+    skipped: "Skipped",
+  };
+  return labels[status] || status || "Signal";
+}
+
 async function loadPreCases() {
   const feed = document.getElementById("reddit-feed");
   if (!feed) return;
   try {
     const json = await apiFetch("/test");
-    feed.innerHTML = (json.inserted ?? [])
-      .map(
-        (post) =>
-          `<li><a class="text-[#43e2d2] hover:underline" href="https://reddit.com${escapeHtml(post.permalink)}" target="_blank" rel="noopener">${escapeHtml(post.title)}</a></li>`
-      )
+    const rows = json.inserted ?? [];
+    if (!rows.length) {
+      feed.innerHTML = `<li class="text-[#e5e2e1]/50">No ingested signals yet. Run a scrape from Prospector.</li>`;
+      return;
+    }
+    feed.innerHTML = rows
+      .map((post) => {
+        const path = post.permalink || "";
+        const href = path.startsWith("http")
+          ? path
+          : `https://reddit.com${path}`;
+        const status = precaseStatusLabel(post.ai_status);
+        const reason = post.rejection_reason
+          ? ` — ${escapeHtml(post.rejection_reason)}`
+          : "";
+        return `<li class="flex flex-wrap gap-2 items-baseline">
+          <span class="text-xs uppercase tracking-wide text-[#43e2d2]/80">${escapeHtml(status)}</span>
+          <a class="text-[#43e2d2] hover:underline" href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(post.title)}</a>
+          ${reason ? `<span class="text-[#e5e2e1]/45 text-xs">${reason}</span>` : ""}
+        </li>`;
+      })
       .join("");
   } catch {
     feed.innerHTML = `<li class="text-[#e5e2e1]/50">Pre-case feed unavailable.</li>`;

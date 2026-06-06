@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { getStore } from "../store/index.js";
 import { optionalAuth, requireAuth, getUserId } from "../middleware/auth.js";
+import { requireCronOrUser } from "../middleware/cronAuth.js";
 
 const router = Router();
 router.use(optionalAuth);
@@ -20,13 +21,29 @@ router.get("/test", async (_req, res, next) => {
   }
 });
 
-router.post("/scrape/run", async (_req, res, next) => {
+router.post("/scrape/run", requireCronOrUser, async (_req, res, next) => {
   try {
     const store = getStore();
     if (!store.runScrapePipeline) {
       return res.status(501).json({ error: "Scraper not available for this store" });
     }
-    res.json(await store.runScrapePipeline());
+    const result = await store.runScrapePipeline();
+    if (result?.error) {
+      return res.status(result.status ?? 503).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/ingestion/status", async (_req, res, next) => {
+  try {
+    const store = getStore();
+    if (!store.getIngestionStatus) {
+      return res.json({ lastRun: null });
+    }
+    res.json(await store.getIngestionStatus());
   } catch (err) {
     next(err);
   }

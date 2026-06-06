@@ -84,48 +84,7 @@
   padding: 1.5rem;
 }
 
-.matrix-canvas .axis-line {
-  position: absolute;
-  pointer-events: none;
-  background: linear-gradient(90deg, rgba(255, 183, 121, 0.25), rgba(67, 226, 210, 0.25));
-}
-
-.matrix-canvas .axis-h {
-  height: 1px;
-  left: 2rem;
-  right: 2rem;
-  top: 50%;
-}
-
-.matrix-canvas .axis-v {
-  width: 1px;
-  top: 2rem;
-  bottom: 2rem;
-  left: 50%;
-}
-
-.matrix-label {
-  position: absolute;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: rgba(229, 226, 225, 0.7);
-  pointer-events: none;
-}
-
-.matrix-label-x {
-  left: 1.5rem;
-  bottom: 0.75rem;
-}
-
-.matrix-label-y {
-  top: 0.75rem;
-  right: 1rem;
-}
-
-.matrix-bubble:hover {
-  transform: scale(1.05);
-  z-index: 2;
-}
+/* Matrix styles live in theme.css */
 
 .hidden {
   display: none !important;

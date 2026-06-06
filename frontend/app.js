@@ -87,6 +87,11 @@ async function renderRoute(route) {
     return;
   }
 
+  mainContent.classList.remove("main-content--wide");
+  if (route.name === "matrix") {
+    mainContent.classList.add("main-content--wide");
+  }
+
   setMainLoading(true);
   try {
     const view = await loadView();
