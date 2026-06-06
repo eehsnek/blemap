@@ -34,3 +34,16 @@ test("confirmCase publishes after threshold", async () => {
   const updated = await store.getCase(c.id);
   assert.equal(updated.status, "published");
 });
+
+test("getMetricsSummary returns prospector stats", async () => {
+  const store = createMemoryStore();
+  const m = await store.getMetricsSummary();
+  assert.ok(m.prospector.unclaimed >= 0);
+  assert.ok(m.byDomain);
+});
+
+test("getRecentActivity returns items array", async () => {
+  const store = createMemoryStore();
+  const { items } = await store.getRecentActivity({ limit: 5 });
+  assert.ok(Array.isArray(items));
+});

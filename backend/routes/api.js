@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getStore } from "../store/index.js";
+import { parseCaseFilters } from "../lib/caseFilters.js";
 import { optionalAuth, requireAuth, getUserId } from "../middleware/auth.js";
 import { requireCronOrUser } from "../middleware/cronAuth.js";
 
@@ -49,23 +50,62 @@ router.get("/ingestion/status", async (_req, res, next) => {
   }
 });
 
+router.get("/metrics/summary", async (_req, res, next) => {
+  try {
+    const store = getStore();
+    if (!store.getMetricsSummary) {
+      return res.status(501).json({ error: "Metrics not available" });
+    }
+    res.json(await store.getMetricsSummary());
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/activity/recent", async (req, res, next) => {
+  try {
+    const store = getStore();
+    if (!store.getRecentActivity) {
+      return res.json({ items: [] });
+    }
+    const limit = Math.min(Number(req.query.limit) || 20, 50);
+    res.json(await store.getRecentActivity({ limit }));
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get("/cases", async (req, res, next) => {
   try {
     const userId = getUserId(req);
     const view = req.query.view;
+    const filters = parseCaseFilters(req.query);
 
     if (view === "matrix") {
-      return res.json(await getStore().listMatrixCases(userId));
+      return res.json(await getStore().listMatrixCases(userId, filters));
     }
     if (view === "prospector") {
-      return res.json(await getStore().listProspectorCases(userId));
+      return res.json(await getStore().listProspectorCases(userId, filters));
     }
     if (view === "pending") {
-      const all = await getStore().listCases(userId);
+      const all = await getStore().listCases(userId, { filters });
       return res.json(all.filter((c) => c.status === "pending"));
     }
 
-    res.json(await getStore().listCases(userId));
+    res.json(await getStore().listCases(userId, { filters }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/cases/:id/events", async (req, res, next) => {
+  try {
+    const store = getStore();
+    if (!store.getCaseEvents) {
+      return res.json([]);
+    }
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+    res.json(await store.getCaseEvents(req.params.id, limit));
   } catch (err) {
     next(err);
   }
@@ -76,6 +116,26 @@ router.get("/cases/:id", async (req, res, next) => {
     const c = await getStore().getCase(req.params.id);
     if (!c) return res.status(404).json({ error: "Case not found" });
     res.json(c);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/cases/:id/solve/analyze", async (req, res, next) => {
+  try {
+    const solveText = req.body?.solve_text?.trim();
+    if (!solveText) {
+      return res.status(400).json({ error: "solve_text is required" });
+    }
+    const store = getStore();
+    if (!store.analyzeSolveProposal) {
+      return res.status(501).json({ error: "Solve analysis not supported" });
+    }
+    const result = await store.analyzeSolveProposal(req.params.id, solveText);
+    if (result?.error) {
+      return res.status(result.status ?? 400).json({ error: result.error });
+    }
+    res.json(result);
   } catch (err) {
     next(err);
   }

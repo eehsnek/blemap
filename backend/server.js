@@ -30,6 +30,7 @@ app.get("/config.js", (_req, res) => {
       apiBase: "",
       supabaseUrl,
       supabaseAnonKey,
+      store: getStore().mode,
     })};`
   );
 });

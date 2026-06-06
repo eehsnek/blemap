@@ -9,6 +9,7 @@ import {
   setPageTitle,
 } from "./router.js";
 import * as authView from "./views/authView.js";
+import { startRealtime, stopRealtime } from "./lib/realtime.js";
 
 const bootScreen = document.getElementById("boot-screen");
 const authScreen = document.getElementById("auth-screen");
@@ -137,10 +138,14 @@ async function requireSession() {
   }
 }
 
+let stopRealtimeFn = null;
+
 async function enterAuthenticatedApp({ forceHome = false } = {}) {
   isAuthenticated = true;
   showAppOnly();
   updateAuthStatus();
+  stopRealtimeFn?.();
+  stopRealtimeFn = startRealtime();
 
   const hashRoute = window.location.hash ? parseRoute() : null;
   const stored = pendingReturnRoute;
@@ -162,6 +167,8 @@ async function enterAuthenticatedApp({ forceHome = false } = {}) {
 function exitToAuth() {
   isAuthenticated = false;
   authMounted = false;
+  stopRealtime();
+  stopRealtimeFn = null;
   viewCleanup?.();
   viewCleanup = null;
   clearRoute();

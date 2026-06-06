@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { logMemoryCaseEvent } from "../../lib/caseEvents.js";
 
 /**
  * @param {{
@@ -6,6 +7,7 @@ import { randomUUID } from "node:crypto";
  *   precase: object[],
  *   seenPermalinks: Set<string>,
  *   scrapeRuns: object[],
+ *   eventCtx?: { caseEvents: object[] },
  * }} ctx
  */
 export function createMemoryIngestionAdapter(ctx) {
@@ -31,7 +33,7 @@ export function createMemoryIngestionAdapter(ctx) {
       if (row) Object.assign(row, patch);
     },
 
-    async mergeCase(caseId, { permalink, subreddit, pain_delta = 1 }) {
+    async mergeCase(caseId, { permalink, subreddit, pain_delta = 1, source = "scrape" }) {
       const c = ctx.cases.find((x) => x.id === caseId);
       if (!c) return;
       c.pain_count = (c.pain_count ?? 0) + pain_delta;
@@ -43,6 +45,14 @@ export function createMemoryIngestionAdapter(ctx) {
         c.subreddits = c.subreddits ?? [];
         if (!c.subreddits.includes(subreddit)) c.subreddits.push(subreddit);
       }
+      if (ctx.eventCtx) {
+        logMemoryCaseEvent(ctx.eventCtx, {
+          caseId,
+          eventType: "merged_signal",
+          source,
+          metadata: { permalink, pain_delta, topic: c.topic },
+        });
+      }
     },
 
     async createCase(row) {
@@ -52,6 +62,21 @@ export function createMemoryIngestionAdapter(ctx) {
         ...row,
       };
       ctx.cases.push(created);
+      if (ctx.eventCtx) {
+        logMemoryCaseEvent(ctx.eventCtx, {
+          caseId: created.id,
+          eventType: "submitted",
+          source: row.source ?? "scrape",
+          metadata: { topic: created.topic, status: created.status },
+        });
+        if (created.status === "published") {
+          logMemoryCaseEvent(ctx.eventCtx, {
+            caseId: created.id,
+            eventType: "published",
+            source: "scrape",
+          });
+        }
+      }
       return created;
     },
 

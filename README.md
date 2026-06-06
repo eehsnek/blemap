@@ -167,6 +167,8 @@ Copy `.env.example` to `.env`:
 | `REDDIT_USERNAME` / `REDDIT_PASSWORD` | For **script**-type apps only (your Reddit login) |
 | `REDDIT_USER_AGENT` | e.g. `web:BleMap:v1.0.0 (by /u/YourUsername)` |
 | `SCRAPE_PUBLISH_MODE` | `auto` (publish valid scrapes) or `pending` (community confirm first) |
+| `SOLVE_AI_ENFORCE` | `true` to reject irrelevant solutions on submit; default advisory via `/solve/analyze` |
+| `NOTIFY_HIGH_GAP_THRESHOLD` | Prospector high-gap toast threshold (default `70`) |
 | `CONFIRMATIONS_REQUIRED` | Default `5` (user submit only) |
 
 ### Automation (AI + Reddit)
@@ -176,6 +178,19 @@ Copy `.env.example` to `.env`:
 3. **Local:** `npm run dev` in one terminal, `npm run scrape` in another.
 4. **Vercel:** set `CRON_SECRET`, `GEMINI_API_KEY`, and Supabase keys. Cron runs every 6h (`vercel.json`). Run [`database/migrations/004_precase_automation.sql`](database/migrations/004_precase_automation.sql) in Supabase for precase status + scrape logs.
 5. Check last run: `GET /api/ingestion/status`
+6. Run migration [`database/migrations/005_case_events.sql`](database/migrations/005_case_events.sql) for activity audit + Supabase Realtime
+
+### Live updates & metrics API
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/metrics/summary` | Aggregate counts by domain, quadrant, ingest funnel |
+| `GET /api/activity/recent?limit=20` | Living Archive activity feed |
+| `GET /api/cases/:id/events` | Per-case audit trail |
+| `GET /api/cases?q=&domain=&status=&lifecycle_state=&limit=&offset=` | Search and filter |
+| `POST /api/cases/:id/solve/analyze` | Advisory AI feedback before submitting a solution |
+
+Matrix and Prospector poll every 60s; Supabase Realtime pushes updates when `store=supabase`.
 
 **Scrape without Reddit** — By default, ingest uses **Hacker News** (Ask + New stories, no API key). Prospector → **Run ingest scrape**, or `npm run scrape`.
 
@@ -202,7 +217,11 @@ Auth runs in the browser against **Supabase** (defaults in `shared/supabasePubli
 | AI submit + confirm-before-post | ✅ |
 | Community validation → matrix | ✅ |
 | Gap score + matrix | ✅ |
-| Reddit scrape + scheduled automation | ✅ |
+| Live matrix refresh + metrics summary | ✅ |
+| Activity feed + case_events audit | ✅ |
+| Search/filter cases | ✅ |
+| AI solve validation (advisory) | ✅ |
+| HN + Reddit scrape + scheduled automation | ✅ |
 | Prospector view | ✅ |
 
 Docs: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/ERD.md`](docs/ERD.md) · [`docs/DEMO.md`](docs/DEMO.md)

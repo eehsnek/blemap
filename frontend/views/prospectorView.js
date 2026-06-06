@@ -1,13 +1,21 @@
 import { apiFetch } from "../api.js";
 import { navigate } from "../router.js";
 import { escapeHtml } from "../util.js";
+import { emitDataChanged, onDataChanged, debounce } from "../lib/events.js";
+import { mountCaseFilters, filtersToQuery } from "../components/caseFilters.js";
+import { checkIngestNotification, checkHighGapNotification } from "../lib/notifications.js";
+
+const POLL_MS = 60_000;
+let currentFilters = {};
 
 export function mount(container) {
   container.innerHTML = `
     <div class="max-w-3xl">
       <p class="text-sm uppercase tracking-wide text-[#43e2d2] mb-1">Prospector</p>
       <h1 class="text-3xl font-bold mb-2">High-gap opportunities</h1>
+      <p id="prospector-stats" class="text-[#e5e2e1]/70 mb-4 text-sm">Loading stats…</p>
       <p class="text-[#e5e2e1]/70 mb-4">Unclaimed published cases sorted by gap score. Scrape pulls <strong class="text-[#43e2d2]">Hacker News</strong> for free (Ask + New); Reddit is used too if API creds are in <code class="text-xs">.env</code>.</p>
+      <div id="prospector-filters" class="mb-4"></div>
       <div id="ingestion-status" class="mb-4 text-sm text-[#e5e2e1]/60 hidden"></div>
       <div id="scrape-summary" class="mb-4 hidden rounded-lg border border-[#534438]/30 bg-[#201a16] p-3 text-sm text-[#e5e2e1]/80"></div>
       <button type="button" id="run-scrape" class="mb-6 text-sm bg-[#2a2a2a] text-[#43e2d2] px-4 py-2 rounded hover:bg-[#333] transition">
@@ -18,10 +26,46 @@ export function mount(container) {
   `;
 
   document.getElementById("run-scrape").addEventListener("click", runScrape);
+
+  const filterCleanup = mountCaseFilters(
+    document.getElementById("prospector-filters"),
+    {
+      onChange: (filters) => {
+        currentFilters = filters;
+        loadProspectorFeed();
+      },
+    }
+  );
+
+  const refreshAll = debounce(() => {
+    loadIngestionStatus();
+    loadProspectorFeed();
+    loadProspectorStats();
+  }, 300);
+
   loadIngestionStatus();
   loadProspectorFeed();
+  loadProspectorStats();
 
-  return () => {};
+  const pollTimer = setInterval(refreshAll, POLL_MS);
+  const unsubData = onDataChanged(refreshAll);
+
+  return () => {
+    clearInterval(pollTimer);
+    unsubData();
+    filterCleanup?.();
+  };
+}
+
+async function loadProspectorStats() {
+  const el = document.getElementById("prospector-stats");
+  if (!el) return;
+  try {
+    const m = await apiFetch("/metrics/summary");
+    el.textContent = `${m.prospector?.unclaimed ?? 0} unclaimed · avg gap ${m.prospector?.avgGap ?? 0} · ${m.totals?.newToday ?? 0} new today · ${m.prospector?.highGap ?? 0} high-gap (≥70)`;
+  } catch {
+    el.textContent = "High-gap opportunities";
+  }
 }
 
 function renderScrapeSummary(r) {
@@ -33,7 +77,9 @@ function renderScrapeSummary(r) {
     <p>Sources: ${escapeHtml((r.sources || ["hackernews"]).join(", "))}</p>
     <p>Fetched <strong>${r.scraped ?? 0}</strong> · Promoted <strong>${r.promoted ?? 0}</strong> · Merged <strong>${r.merged ?? 0}</strong> · Rejected <strong>${r.rejected ?? 0}</strong> · Skipped <strong>${r.skipped ?? 0}</strong></p>
     ${(r.errors?.length ?? 0) > 0 ? `<p class="text-[#ffb779] mt-1">${r.errors.length} error(s) — see server logs</p>` : ""}
+    ${(r.promoted ?? 0) > 0 ? `<button type="button" id="goto-matrix" class="btn-primary mt-2 text-sm">View new nodes on matrix</button>` : ""}
   `;
+  document.getElementById("goto-matrix")?.addEventListener("click", () => navigate("matrix"));
 }
 
 async function loadIngestionStatus() {
@@ -48,6 +94,7 @@ async function loadIngestionStatus() {
     el.classList.remove("hidden");
     const when = lastRun.finished_at || lastRun.started_at;
     el.textContent = `Automation: last run ${when ? new Date(when).toLocaleString() : "—"} — ${lastRun.promoted_count ?? lastRun.promoted ?? 0} promoted of ${lastRun.scraped_count ?? lastRun.scraped ?? 0} fetched`;
+    checkIngestNotification(lastRun);
   } catch {
     el.classList.add("hidden");
   }
@@ -60,13 +107,15 @@ async function runScrape() {
   try {
     const r = await apiFetch("/scrape/run", { method: "POST" });
     renderScrapeSummary(r);
+    emitDataChanged("scrape");
     await loadIngestionStatus();
     await loadProspectorFeed();
+    await loadProspectorStats();
   } catch (err) {
     alert(err.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = "Run Reddit scrape";
+    btn.textContent = "Run ingest scrape";
   }
 }
 
@@ -75,7 +124,10 @@ async function loadProspectorFeed() {
   if (!list) return;
 
   try {
-    const cases = await apiFetch("/cases?view=prospector");
+    const qs = filtersToQuery({ ...currentFilters, view: "prospector" });
+    const cases = await apiFetch(`/cases${qs}`);
+    checkHighGapNotification(cases);
+
     if (!cases.length) {
       list.innerHTML = `<p class="text-[#e5e2e1]/60">No unclaimed high-gap cases. Try running the scraper.</p>`;
       return;

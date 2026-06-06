@@ -1,7 +1,50 @@
 import { DISCLAIMER } from "../lib/caseMetrics.js";
+import {
+  MIN_SUBMIT_WORDS,
+  normalizeSubmitText,
+} from "../lib/normalizeSubmitText.js";
 
 const LAW_KEYWORDS = /\b(court|lawyer|legal|sue|tenant|landlord|contract)\b/i;
 const MED_KEYWORDS = /\b(doctor|hospital|diagnosis|medicine|symptom|prescription)\b/i;
+
+function wordCount(text) {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function buildRejectionCoach(text) {
+  const lower = text.toLowerCase();
+  const suggestions = [
+    "Who is affected?",
+    "What goes wrong in practice?",
+    "Why does it matter now?",
+  ];
+
+  let expandPrompt = text;
+  let rejectionReason = "too_short";
+
+  if (/\b(unemploy\w*|jobless|hiring|layoff|workforce|youth)\b/i.test(lower)) {
+    const region = /\bphilippines\b/i.test(lower)
+      ? "the Philippines"
+      : /\b(youth|young|teen|graduate)\b/i.test(lower)
+        ? "young job seekers"
+        : "people in this region";
+    expandPrompt = `${region.charAt(0).toUpperCase() + region.slice(1)} struggle to find stable employment because `;
+    suggestions.splice(0, 3, "Add scale (how many affected)", "Add root cause", "Add location or timeframe");
+    rejectionReason = "too_short_topic";
+  } else if (/\b(landlord|tenant|rent|deposit|lease)\b/i.test(lower)) {
+    expandPrompt = "Tenants and renters are harmed because ";
+    suggestions.splice(0, 3, "What did the landlord or agency do?", "Who is affected?", "What outcome do you want?");
+    rejectionReason = "too_short_topic";
+  } else if (/\b(bank|fee|loan|credit|charge)\b/i.test(lower)) {
+    expandPrompt = "Consumers face unfair financial harm because ";
+    suggestions.splice(0, 3, "Which institution or product?", "What fee or policy changed?", "Who is impacted?");
+    rejectionReason = "too_short_topic";
+  } else if (!/[.!?]$/.test(text.trim())) {
+    expandPrompt = `${text.trim()}. Those affected face problems because `;
+  }
+
+  return { suggestions, expandPrompt, rejectionReason };
+}
 
 function detectDomain(text) {
   if (LAW_KEYWORDS.test(text)) return "law";
@@ -12,22 +55,36 @@ function detectDomain(text) {
 }
 
 function heuristicAnalyze(text, existingCases = []) {
-  const trimmed = text.trim();
-  const wordCount = trimmed.split(/\s+/).length;
+  const trimmed = normalizeSubmitText(text);
+  const count = wordCount(trimmed);
 
-  if (wordCount < 8) {
+  if (count < MIN_SUBMIT_WORDS) {
+    const coach = buildRejectionCoach(trimmed);
     return {
       isValid: false,
       rejectionMessage:
-        "This reads a bit short to be a clear problem. Can you add more context about who is affected and what goes wrong?",
+        "This reads a bit short to be a clear problem. Add who is affected and what goes wrong — or use the suggested starter below.",
+      rejectionReason: coach.rejectionReason,
+      suggestions: coach.suggestions,
+      expandPrompt: coach.expandPrompt,
+      wordCount: count,
+      wordsRequired: MIN_SUBMIT_WORDS,
     };
   }
 
-  if (/^(hi|hello|test|asdf)/i.test(trimmed) && wordCount < 15) {
+  if (/^(hi|hello|test|asdf)/i.test(trimmed) && count < 15) {
     return {
       isValid: false,
       rejectionMessage:
         "We couldn't detect a real-world problem yet. Try describing the frustration in a full sentence.",
+      rejectionReason: "not_a_problem",
+      suggestions: [
+        "Describe a specific situation, not a greeting",
+        "Name who is affected",
+        "Explain what fails or feels unfair",
+      ],
+      wordCount: count,
+      wordsRequired: 15,
     };
   }
 
@@ -117,12 +174,32 @@ User submission: ${JSON.stringify(text)}`;
   return parsed;
 }
 
+function enrichRejection(result, originalText) {
+  if (result.isValid !== false) return result;
+  if (result.suggestions?.length) return result;
+  const trimmed = normalizeSubmitText(originalText);
+  const coach = buildRejectionCoach(trimmed);
+  return {
+    ...result,
+    suggestions: coach.suggestions,
+    expandPrompt: coach.expandPrompt,
+    rejectionReason: result.rejectionReason ?? coach.rejectionReason,
+    wordCount: wordCount(trimmed),
+    wordsRequired: result.wordsRequired ?? MIN_SUBMIT_WORDS,
+  };
+}
+
 export async function analyzeSubmission(text, existingCases = []) {
+  const normalized = normalizeSubmitText(text);
   try {
-    const gemini = await geminiAnalyze(text, existingCases);
-    if (gemini?.isValid === false || gemini?.structured) return gemini;
+    const gemini = await geminiAnalyze(normalized, existingCases);
+    if (gemini?.isValid === false || gemini?.structured) {
+      return enrichRejection(gemini, normalized);
+    }
   } catch (err) {
     console.warn("AI analyze fallback:", err.message);
   }
-  return heuristicAnalyze(text, existingCases);
+  return heuristicAnalyze(normalized, existingCases);
 }
+
+export { MIN_SUBMIT_WORDS };

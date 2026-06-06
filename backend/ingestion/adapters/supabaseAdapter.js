@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { logSupabaseCaseEvent } from "../../lib/caseEvents.js";
 
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
@@ -37,10 +38,10 @@ export function createSupabaseIngestionAdapter(supabase, fetchCasesQuery) {
       if (error) throw error;
     },
 
-    async mergeCase(caseId, { permalink, subreddit, pain_delta = 1 }) {
+    async mergeCase(caseId, { permalink, subreddit, pain_delta = 1, source = "scrape" }) {
       const { data: c } = await supabase
         .from("cases")
-        .select("pain_count, permalinks, subreddits")
+        .select("pain_count, permalinks, subreddits, topic")
         .eq("id", caseId)
         .single();
       if (!c) return;
@@ -58,6 +59,13 @@ export function createSupabaseIngestionAdapter(supabase, fetchCasesQuery) {
           subreddits,
         })
         .eq("id", caseId);
+
+      await logSupabaseCaseEvent(supabase, {
+        caseId,
+        eventType: "merged_signal",
+        source,
+        metadata: { permalink, pain_delta, topic: c.topic },
+      }).catch((err) => console.warn("case_events:", err.message));
     },
 
     async createCase(row) {
@@ -79,8 +87,25 @@ export function createSupabaseIngestionAdapter(supabase, fetchCasesQuery) {
         raw_input: row.raw_input,
         source: row.source,
         cta_text: row.cta_text,
+        created_at: new Date().toISOString(),
       });
       if (error) throw error;
+
+      await logSupabaseCaseEvent(supabase, {
+        caseId: id,
+        eventType: "submitted",
+        source: row.source ?? "scrape",
+        metadata: { topic: row.topic, status: row.status },
+      }).catch((err) => console.warn("case_events:", err.message));
+
+      if (row.status === "published") {
+        await logSupabaseCaseEvent(supabase, {
+          caseId: id,
+          eventType: "published",
+          source: "scrape",
+        }).catch((err) => console.warn("case_events:", err.message));
+      }
+
       return { id };
     },
 

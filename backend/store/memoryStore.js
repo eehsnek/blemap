@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { analyzeSubmission } from "../ai/analyzeSubmission.js";
+import { analyzeSolve, solveAiEnforced } from "../ai/analyzeSolve.js";
+import {
+  buildActivityFeed,
+  buildMetricsSummary,
+  MS_WEEK,
+} from "../lib/aggregateMetrics.js";
+import { applyCaseFilters } from "../lib/caseFilters.js";
+import { logMemoryCaseEvent } from "../lib/caseEvents.js";
 import { CONFIRMATIONS_REQUIRED, enrichCase } from "../lib/caseMetrics.js";
 import { createMemoryIngestionAdapter } from "../ingestion/adapters/memoryAdapter.js";
 import { runScrapeJob } from "../ingestion/runScrapeJob.js";
@@ -75,7 +83,9 @@ export function createMemoryStore() {
   const drafts = new Map();
   const precase = [];
   const scrapeRuns = [];
+  const caseEvents = [];
   const seenPermalinks = new Set();
+  const eventCtx = { caseEvents };
 
   function ingestionAdapter() {
     return createMemoryIngestionAdapter({
@@ -83,7 +93,25 @@ export function createMemoryStore() {
       precase,
       seenPermalinks,
       scrapeRuns,
+      caseEvents,
+      eventCtx,
     });
+  }
+
+  function logEvent(params) {
+    const c = findCase(params.caseId);
+    const enriched = c
+      ? enrichCase(c, {
+          solves: solves.filter((s) => s.case_id === c.id),
+          maxPain: maxPain(),
+        })
+      : null;
+    const metadata = {
+      ...params.metadata,
+      topic: c?.topic,
+      gap_score: enriched?.gap_score,
+    };
+    return logMemoryCaseEvent(eventCtx, { ...params, metadata });
   }
 
   function findCase(id) {
@@ -98,7 +126,7 @@ export function createMemoryStore() {
     return Math.max(...cases.map((c) => c.pain_count), 1);
   }
 
-  function listEnriched(userId, { publishedOnly = false, prospector = false } = {}) {
+  function listEnriched(userId, { publishedOnly = false, prospector = false, filters = {} } = {}) {
     let rows = publishedOnly ? publishedCases() : [...cases];
     if (prospector) {
       rows = rows.filter(
@@ -123,10 +151,11 @@ export function createMemoryStore() {
       );
     });
 
+    let result = enriched;
     if (prospector) {
-      return enriched.sort((a, b) => b.gap_score - a.gap_score);
+      result = enriched.sort((a, b) => b.gap_score - a.gap_score);
     }
-    return enriched;
+    return applyCaseFilters(result, filters);
   }
 
   return {
@@ -136,12 +165,12 @@ export function createMemoryStore() {
       return listEnriched(userId, opts);
     },
 
-    async listMatrixCases(userId) {
-      return listEnriched(userId, { publishedOnly: true });
+    async listMatrixCases(userId, filters = {}) {
+      return listEnriched(userId, { publishedOnly: true, filters });
     },
 
-    async listProspectorCases(userId) {
-      return listEnriched(userId, { prospector: true });
+    async listProspectorCases(userId, filters = {}) {
+      return listEnriched(userId, { prospector: true, filters });
     },
 
     async getCase(id) {
@@ -212,6 +241,13 @@ export function createMemoryStore() {
       };
       cases.push(created);
       drafts.delete(draftId);
+      logEvent({
+        caseId: created.id,
+        eventType: "submitted",
+        actorId: userId,
+        source: "user",
+        metadata: { domain: created.domain },
+      });
       return {
         matched: false,
         pending: true,
@@ -229,11 +265,26 @@ export function createMemoryStore() {
       }
       confirmations.set(key, true);
       c.confirmation_count = (c.confirmation_count ?? 0) + 1;
+      const wasPending = c.status === "pending";
       if (
         c.status === "pending" &&
         c.confirmation_count >= CONFIRMATIONS_REQUIRED
       ) {
         c.status = "published";
+      }
+      logEvent({
+        caseId: caseId,
+        eventType: "confirmed",
+        actorId: userId,
+        metadata: { confirmation_count: c.confirmation_count },
+      });
+      if (wasPending && c.status === "published") {
+        logEvent({
+          caseId: caseId,
+          eventType: "published",
+          actorId: userId,
+          source: "system",
+        });
       }
       return {
         confirmation_count: c.confirmation_count,
@@ -250,10 +301,22 @@ export function createMemoryStore() {
       if (painVotes.has(key)) {
         painVotes.delete(key);
         c.pain_count = Math.max(0, c.pain_count - 1);
+        logEvent({
+          caseId: caseId,
+          eventType: "pain_removed",
+          actorId: userId,
+          metadata: { pain_count: c.pain_count },
+        });
         return { state: "unpained", pain_count: c.pain_count };
       }
       painVotes.set(key, true);
       c.pain_count += 1;
+      logEvent({
+        caseId: caseId,
+        eventType: "pain_added",
+        actorId: userId,
+        metadata: { pain_count: c.pain_count },
+      });
       return { state: "pained", pain_count: c.pain_count };
     },
 
@@ -266,6 +329,11 @@ export function createMemoryStore() {
       if (c.claimed_by === userId) {
         c.claimed_by = null;
         c.lifecycle_state = "grey";
+        logEvent({
+          caseId: caseId,
+          eventType: "unclaimed",
+          actorId: userId,
+        });
         return { state: "unclaimed", case: enrichCase(c, { maxPain: maxPain() }) };
       }
       if (c.claimed_by) {
@@ -273,12 +341,29 @@ export function createMemoryStore() {
       }
       c.claimed_by = userId;
       c.lifecycle_state = "orange";
+      logEvent({
+        caseId: caseId,
+        eventType: "claimed",
+        actorId: userId,
+      });
       return { state: "claimed", case: enrichCase(c, { maxPain: maxPain() }) };
     },
 
     async addSolve(caseId, userId, solveText) {
       const c = findCase(caseId);
       if (!c) return { error: "Case not found", status: 404 };
+      const enriched = enrichCase(c, {
+        solves: solves.filter((s) => s.case_id === caseId),
+        maxPain: maxPain(),
+      });
+      const analysis = await analyzeSolve(solveText, enriched);
+      if (solveAiEnforced() && !analysis.isRelevant) {
+        return {
+          error: analysis.rejectionMessage || "Solution not relevant to this case",
+          status: 422,
+          analysis,
+        };
+      }
       const solve = {
         id: randomUUID(),
         case_id: caseId,
@@ -288,7 +373,27 @@ export function createMemoryStore() {
       };
       solves.push(solve);
       c.solve_count += 1;
-      return { solve, case: enrichCase(c, { solves, maxPain: maxPain() }) };
+      logEvent({
+        caseId: caseId,
+        eventType: "solve_added",
+        actorId: userId,
+        metadata: { solve_id: solve.id },
+      });
+      return {
+        solve,
+        analysis,
+        case: enrichCase(c, { solves, maxPain: maxPain() }),
+      };
+    },
+
+    async analyzeSolveProposal(caseId, solveText) {
+      const c = findCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      const enriched = enrichCase(c, {
+        solves: solves.filter((s) => s.case_id === caseId),
+        maxPain: maxPain(),
+      });
+      return { analysis: await analyzeSolve(solveText, enriched) };
     },
 
     async acceptSolve(solveId, userId) {
@@ -302,6 +407,12 @@ export function createMemoryStore() {
         if (s.case_id === c.id) s.accepted = s.id === solveId;
       });
       c.lifecycle_state = "green";
+      logEvent({
+        caseId: c.id,
+        eventType: "solve_accepted",
+        actorId: userId,
+        metadata: { solve_id: solveId },
+      });
       return { solve, case: enrichCase(c, { solves, maxPain: maxPain() }) };
     },
 
@@ -314,6 +425,12 @@ export function createMemoryStore() {
       }
       solve.accepted = false;
       c.lifecycle_state = c.claimed_by ? "orange" : "grey";
+      logEvent({
+        caseId: c.id,
+        eventType: "solve_unaccepted",
+        actorId: userId,
+        metadata: { solve_id: solveId },
+      });
       return { solve, case: enrichCase(c, { solves, maxPain: maxPain() }) };
     },
 
@@ -326,7 +443,74 @@ export function createMemoryStore() {
       c.lifecycle_state = "green";
       c.outcome_url = outcomeUrl || null;
       c.outcome_note = outcomeNote || null;
+      logEvent({
+        caseId: caseId,
+        eventType: "marked_solved",
+        actorId: userId,
+        metadata: { outcome_url: outcomeUrl, outcome_note: outcomeNote },
+      });
       return { case: enrichCase(c, { maxPain: maxPain() }) };
+    },
+
+    async getCaseEvents(caseId, limit = 50) {
+      return caseEvents
+        .filter((e) => e.case_id === caseId)
+        .slice(-limit)
+        .reverse();
+    },
+
+    async getMetricsSummary() {
+      const enriched = listEnriched(null);
+      const adapter = ingestionAdapter();
+      const lastRun = await adapter.getLastScrapeRun();
+      const precaseRows = precase;
+      const precaseByStatus = {};
+      for (const p of precaseRows) {
+        const s = p.ai_status || "pending";
+        precaseByStatus[s] = (precaseByStatus[s] ?? 0) + 1;
+      }
+      const weekAgo = Date.now() - MS_WEEK;
+      const confirmationsLast7d = caseEvents.filter(
+        (e) =>
+          e.event_type === "confirmed" &&
+          new Date(e.created_at).getTime() > weekAgo
+      ).length;
+      const solvesLast7d = caseEvents.filter(
+        (e) =>
+          e.event_type === "solve_added" &&
+          new Date(e.created_at).getTime() > weekAgo
+      ).length;
+      return buildMetricsSummary(enriched, {
+        lastScrapeRun: lastRun,
+        precaseByStatus,
+        confirmationsLast7d,
+        solvesLast7d,
+      });
+    },
+
+    async getRecentActivity({ limit = 20 } = {}) {
+      const enriched = listEnriched(null);
+      const recentCases = [...cases]
+        .sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )
+        .slice(0, 10);
+      const eventsWithTopic = [...caseEvents]
+        .slice(-limit)
+        .reverse()
+        .map((e) => {
+          const c = findCase(e.case_id);
+          return { ...e, topic: c?.topic };
+        });
+      return {
+        items: buildActivityFeed({
+          caseEvents: eventsWithTopic,
+          scrapeRuns: [...scrapeRuns].slice(-5).reverse(),
+          recentCases,
+          limit,
+        }),
+      };
     },
 
     async getPrecaseFeed() {

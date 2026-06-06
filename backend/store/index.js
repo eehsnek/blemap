@@ -1,6 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 import { createMemoryStore } from "./memoryStore.js";
 import { analyzeSubmission } from "../ai/analyzeSubmission.js";
+import { analyzeSolve, solveAiEnforced } from "../ai/analyzeSolve.js";
+import {
+  buildActivityFeed,
+  buildMetricsSummary,
+  MS_WEEK,
+} from "../lib/aggregateMetrics.js";
+import { applyCaseFilters } from "../lib/caseFilters.js";
+import { logSupabaseCaseEvent } from "../lib/caseEvents.js";
 import {
   CONFIRMATIONS_REQUIRED,
   enrichCase,
@@ -25,12 +33,37 @@ function createSupabaseStore() {
     let q = supabase.from("cases").select("*");
     if (filters.status) q = q.eq("status", filters.status);
     if (filters.publishedOnly) q = q.eq("status", "published");
+    if (filters.domain) q = q.eq("domain", filters.domain);
+    if (filters.lifecycle_state) q = q.eq("lifecycle_state", filters.lifecycle_state);
+    if (filters.source) q = q.eq("source", filters.source);
+    if (filters.q) {
+      const term = `%${filters.q}%`;
+      q = q.or(`topic.ilike.${term},summary.ilike.${term}`);
+    }
     const { data, error } = await q.order("created_at", { ascending: false });
     if (error) throw error;
     return data ?? [];
   }
 
-  async function enrichRow(c, userId) {
+  async function maxPain() {
+    const { data } = await supabase.from("cases").select("pain_count");
+    return Math.max(...(data ?? []).map((c) => c.pain_count ?? 0), 1);
+  }
+
+  async function logEvent(params) {
+    const c = await store.getCase(params.caseId);
+    const metadata = {
+      ...params.metadata,
+      topic: c?.topic,
+      gap_score: c?.gap_score,
+    };
+    return logSupabaseCaseEvent(supabase, { ...params, metadata }).catch((err) => {
+      console.warn("case_events:", err.message);
+      return null;
+    });
+  }
+
+  async function enrichRow(c, userId, maxPainVal) {
     const { data: solves } = await supabase
       .from("solves")
       .select("*")
@@ -58,25 +91,32 @@ function createSupabaseStore() {
 
     return enrichCase(
       { ...c, user_pained, user_confirmed, solves: solves ?? [] },
-      { solves: solves ?? [] }
+      { solves: solves ?? [], maxPain: maxPainVal }
     );
+  }
+
+  async function enrichAll(rows, userId) {
+    const mp = await maxPain();
+    return Promise.all(rows.map((c) => enrichRow(c, userId, mp)));
   }
 
   const store = {
     mode: "supabase",
 
-    async listCases(userId) {
-      const rows = await fetchCasesQuery();
-      return Promise.all(rows.map((c) => enrichRow(c, userId)));
+    async listCases(userId, opts = {}) {
+      const rows = await fetchCasesQuery(opts.filters ?? {});
+      const enriched = await enrichAll(rows, userId);
+      return applyCaseFilters(enriched, opts.filters ?? {});
     },
 
-    async listMatrixCases(userId) {
-      const rows = await fetchCasesQuery({ publishedOnly: true });
-      return Promise.all(rows.map((c) => enrichRow(c, userId)));
+    async listMatrixCases(userId, filters = {}) {
+      const rows = await fetchCasesQuery({ publishedOnly: true, ...filters });
+      const enriched = await enrichAll(rows, userId);
+      return applyCaseFilters(enriched, filters);
     },
 
-    async listProspectorCases(userId) {
-      const all = await this.listMatrixCases(userId);
+    async listProspectorCases(userId, filters = {}) {
+      const all = await this.listMatrixCases(userId, filters);
       return all
         .filter((c) => !c.claimed_by && c.lifecycle_state !== "green")
         .sort((a, b) => b.gap_score - a.gap_score);
@@ -89,7 +129,7 @@ function createSupabaseStore() {
         .eq("id", id)
         .maybeSingle();
       if (error || !c) return null;
-      return enrichRow(c, null);
+      return enrichRow(c, null, await maxPain());
     },
 
     async analyzeSubmit({ text, userId }) {
@@ -142,10 +182,16 @@ function createSupabaseStore() {
         .single();
       if (error) throw error;
       drafts.delete(draftId);
+      await logEvent({
+        caseId: data.id,
+        eventType: "submitted",
+        actorId: userId,
+        source: "user",
+      });
       return {
         matched: false,
         pending: true,
-        case: await enrichRow(data, userId),
+        case: await enrichRow(data, userId, await maxPain()),
         message: `Needs ${CONFIRMATIONS_REQUIRED} confirmations to publish.`,
       };
     },
@@ -165,6 +211,7 @@ function createSupabaseStore() {
         .eq("id", caseId)
         .single();
       const next = (c?.confirmation_count ?? 0) + 1;
+      const wasPending = c?.status === "pending";
       const status =
         c?.status === "pending" && next >= CONFIRMATIONS_REQUIRED
           ? "published"
@@ -173,6 +220,20 @@ function createSupabaseStore() {
         .from("cases")
         .update({ confirmation_count: next, status })
         .eq("id", caseId);
+      await logEvent({
+        caseId,
+        eventType: "confirmed",
+        actorId: userId,
+        metadata: { confirmation_count: next },
+      });
+      if (wasPending && status === "published") {
+        await logEvent({
+          caseId,
+          eventType: "published",
+          actorId: userId,
+          source: "system",
+        });
+      }
       return {
         confirmation_count: next,
         status,
@@ -202,6 +263,12 @@ function createSupabaseStore() {
           .single();
         const next = Math.max(0, (c?.pain_count ?? 0) - 1);
         await supabase.from("cases").update({ pain_count: next }).eq("id", caseId);
+        await logEvent({
+          caseId,
+          eventType: "pain_removed",
+          actorId: userId,
+          metadata: { pain_count: next },
+        });
         return { state: "unpained", pain_count: next };
       }
 
@@ -216,6 +283,12 @@ function createSupabaseStore() {
         .single();
       const next = (c?.pain_count ?? 0) + 1;
       await supabase.from("cases").update({ pain_count: next }).eq("id", caseId);
+      await logEvent({
+        caseId,
+        eventType: "pain_added",
+        actorId: userId,
+        metadata: { pain_count: next },
+      });
       return { state: "pained", pain_count: next };
     },
 
@@ -230,6 +303,7 @@ function createSupabaseStore() {
           .from("cases")
           .update({ claimed_by: null, lifecycle_state: "grey" })
           .eq("id", caseId);
+        await logEvent({ caseId, eventType: "unclaimed", actorId: userId });
         return { state: "unclaimed" };
       }
       if (c.claimed_by) return { error: "Already claimed", status: 409 };
@@ -237,22 +311,44 @@ function createSupabaseStore() {
         .from("cases")
         .update({ claimed_by: userId, lifecycle_state: "orange" })
         .eq("id", caseId);
+      await logEvent({ caseId, eventType: "claimed", actorId: userId });
       return { state: "claimed" };
     },
 
     async addSolve(caseId, userId, solveText) {
+      const c = await this.getCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      const analysis = await analyzeSolve(solveText, c);
+      if (solveAiEnforced() && !analysis.isRelevant) {
+        return {
+          error: analysis.rejectionMessage || "Solution not relevant to this case",
+          status: 422,
+          analysis,
+        };
+      }
       const { data: solve, error } = await supabase
         .from("solves")
         .insert({ case_id: caseId, user_id: userId, solve_text: solveText })
         .select()
         .single();
       if (error) throw error;
-      const c = await this.getCase(caseId);
       await supabase
         .from("cases")
         .update({ solve_count: (c?.solve_count ?? 0) + 1 })
         .eq("id", caseId);
-      return { solve };
+      await logEvent({
+        caseId,
+        eventType: "solve_added",
+        actorId: userId,
+        metadata: { solve_id: solve.id },
+      });
+      return { solve, analysis };
+    },
+
+    async analyzeSolveProposal(caseId, solveText) {
+      const c = await this.getCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      return { analysis: await analyzeSolve(solveText, c) };
     },
 
     async acceptSolve(solveId, userId) {
@@ -274,6 +370,12 @@ function createSupabaseStore() {
         .from("cases")
         .update({ lifecycle_state: "green" })
         .eq("id", solve.case_id);
+      await logEvent({
+        caseId: solve.case_id,
+        eventType: "solve_accepted",
+        actorId: userId,
+        metadata: { solve_id: solveId },
+      });
       return { solve };
     },
 
@@ -292,6 +394,12 @@ function createSupabaseStore() {
         .from("cases")
         .update({ lifecycle_state: "orange" })
         .eq("id", solve.case_id);
+      await logEvent({
+        caseId: solve.case_id,
+        eventType: "solve_unaccepted",
+        actorId: userId,
+        metadata: { solve_id: solveId },
+      });
       return { solve };
     },
 
@@ -308,7 +416,85 @@ function createSupabaseStore() {
           outcome_note: outcomeNote,
         })
         .eq("id", caseId);
+      await logEvent({
+        caseId,
+        eventType: "marked_solved",
+        actorId: userId,
+        metadata: { outcome_url: outcomeUrl, outcome_note: outcomeNote },
+      });
       return { case: await this.getCase(caseId) };
+    },
+
+    async getCaseEvents(caseId, limit = 50) {
+      const { data, error } = await supabase
+        .from("case_events")
+        .select("*")
+        .eq("case_id", caseId)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) {
+        console.warn("case_events fetch:", error.message);
+        return [];
+      }
+      return data ?? [];
+    },
+
+    async getMetricsSummary() {
+      const enriched = await enrichAll(await fetchCasesQuery(), null);
+      const lastRun = await ingestionAdapter().getLastScrapeRun();
+      const { data: precaseRows } = await supabase.from("precase").select("ai_status");
+      const precaseByStatus = {};
+      for (const p of precaseRows ?? []) {
+        const s = p.ai_status || "pending";
+        precaseByStatus[s] = (precaseByStatus[s] ?? 0) + 1;
+      }
+      const weekAgo = new Date(Date.now() - MS_WEEK).toISOString();
+      const { count: confCount } = await supabase
+        .from("case_events")
+        .select("*", { count: "exact", head: true })
+        .eq("event_type", "confirmed")
+        .gte("created_at", weekAgo);
+      const { count: solveCount } = await supabase
+        .from("case_events")
+        .select("*", { count: "exact", head: true })
+        .eq("event_type", "solve_added")
+        .gte("created_at", weekAgo);
+      return buildMetricsSummary(enriched, {
+        lastScrapeRun: lastRun,
+        precaseByStatus,
+        confirmationsLast7d: confCount ?? 0,
+        solvesLast7d: solveCount ?? 0,
+      });
+    },
+
+    async getRecentActivity({ limit = 20 } = {}) {
+      const { data: events } = await supabase
+        .from("case_events")
+        .select("*, cases(topic)")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      const eventsWithTopic = (events ?? []).map((e) => ({
+        ...e,
+        topic: e.cases?.topic,
+      }));
+      const { data: runs } = await supabase
+        .from("scrape_runs")
+        .select("*")
+        .order("started_at", { ascending: false })
+        .limit(5);
+      const { data: recentCases } = await supabase
+        .from("cases")
+        .select("id, topic, source, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(10);
+      return {
+        items: buildActivityFeed({
+          caseEvents: eventsWithTopic,
+          scrapeRuns: runs ?? [],
+          recentCases: recentCases ?? [],
+          limit,
+        }),
+      };
     },
 
     async getPrecaseFeed() {

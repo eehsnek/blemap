@@ -1,78 +1,17 @@
 import { apiFetch } from "../api.js";
 import { navigate } from "../router.js";
 import { escapeHtml } from "../util.js";
+import { onDataChanged, debounce } from "../lib/events.js";
+import { mountCaseFilters, filtersToQuery } from "../components/caseFilters.js";
 
 const INSET = { top: 20, right: 28, bottom: 20, left: 20 };
 const MIN_GAP = 10;
+const POLL_MS = 60_000;
+
 let resizeHandler = null;
-
-export function mount(container) {
-  container.innerHTML = `
-    <div class="matrix-page">
-      <header class="matrix-page-header">
-        <p class="page-eyebrow">Case Matrix</p>
-        <h1 class="page-title page-title--serif">Pressure vs. Progress</h1>
-        <p class="page-lead">
-          Visualize active case momentum across pain and solve counts. Each node is a living problem,
-          framed within the bronze/patina system.
-        </p>
-      </header>
-      <div class="matrix-layout">
-        <aside class="matrix-legend">
-          <h2 class="matrix-legend__title">Legend &amp; Narrative</h2>
-          <div class="matrix-legend__item">
-            <div class="matrix-legend__item-head">
-              <span class="legend-dot legend-dot--grey"></span>
-              Unresolved
-            </div>
-            <p>Cases still waiting for traction.</p>
-          </div>
-          <div class="matrix-legend__item">
-            <div class="matrix-legend__item-head">
-              <span class="legend-dot legend-dot--orange"></span>
-              Claimed
-            </div>
-            <p>Bronze-problem nodes that teams are engaging.</p>
-          </div>
-          <div class="matrix-legend__item">
-            <div class="matrix-legend__item-head">
-              <span class="legend-dot legend-dot--green"></span>
-              Resolved
-            </div>
-            <p>Patina-solution nodes with progress built in.</p>
-          </div>
-          <p class="matrix-legend__footer">
-            <strong>The Matrix:</strong> X axis maps solve count, Y axis maps pain intensity.
-            Larger nodes mean greater impact and urgency.
-          </p>
-        </aside>
-        <div class="matrix-frame">
-          <span class="matrix-frame__expand" aria-hidden="true">⤢</span>
-          <div class="matrix-canvas">
-            <p class="matrix-label matrix-label-y">Pain intensity →</p>
-            <div class="matrix-plot-zone" id="matrix-plot-zone">
-              <div class="matrix-plot-inner" id="matrix-plot">
-                <div class="axis-line axis-h"></div>
-                <div class="axis-line axis-v"></div>
-              </div>
-            </div>
-            <p class="matrix-label matrix-label-x">Solve Count →</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  renderMatrix();
-
-  resizeHandler = () => {
-    clearTimeout(resizeHandler._t);
-    resizeHandler._t = setTimeout(renderMatrix, 150);
-  };
-  window.addEventListener("resize", resizeHandler);
-
-  return () => window.removeEventListener("resize", resizeHandler);
-}
+let pollTimer = null;
+let prevSnapshot = new Map();
+let currentFilters = {};
 
 function bubbleLabel(topic, size) {
   const t = (topic || "Case").trim();
@@ -150,12 +89,17 @@ function resolveCollision(x, y, size, placed, bounds) {
   return { x: cx, y: cy };
 }
 
-function renderBubble(c, pos) {
+function caseSnapshotKey(c) {
+  return `${c.pain_count}|${c.lifecycle_state}|${c.gap_score}`;
+}
+
+function renderBubble(c, pos, updated) {
   const { x, y, size } = pos;
   const bubble = document.createElement("button");
   bubble.type = "button";
   bubble.setAttribute("data-bubble", "true");
-  bubble.className = `matrix-bubble ${bubbleClass(c)}`;
+  bubble.setAttribute("data-case-id", c.id);
+  bubble.className = `matrix-bubble ${bubbleClass(c)}${updated ? " bubble-updated" : ""}`;
   bubble.style.width = `${size}px`;
   bubble.style.height = `${size}px`;
   bubble.style.left = `${x}px`;
@@ -166,10 +110,31 @@ function renderBubble(c, pos) {
   bubble.innerHTML = `<span class="matrix-bubble__text" style="font-size:${fontSize}rem">${escapeHtml(label)}</span>`;
   bubble.title = `${c.topic}\nGap: ${c.gap_score ?? "—"} · Pain: ${c.pain_count ?? 0} · Solves: ${c.solve_count ?? 0}`;
   bubble.addEventListener("click", () => navigate("case", { id: c.id }));
+  if (updated) {
+    setTimeout(() => bubble.classList.remove("bubble-updated"), 1000);
+  }
   return bubble;
 }
 
-async function renderMatrix() {
+async function loadMetricsLegend() {
+  const footer = document.getElementById("matrix-legend-stats");
+  if (!footer) return;
+  try {
+    const m = await apiFetch("/metrics/summary");
+    const q = m.byQuadrant ?? {};
+    footer.innerHTML = `
+      <strong>Live archive:</strong>
+      ${m.totals?.published ?? 0} published ·
+      urgent gap ${q.urgent_gap ?? 0} ·
+      hidden gem ${q.hidden_gem ?? 0} ·
+      ${m.prospector?.unclaimed ?? 0} unclaimed (avg gap ${m.prospector?.avgGap ?? 0})
+    `;
+  } catch {
+    footer.textContent = "Matrix updates every 60s and when cases change.";
+  }
+}
+
+export async function renderMatrix() {
   const plot = document.getElementById("matrix-plot");
   const zone = document.getElementById("matrix-plot-zone");
   if (!plot) return;
@@ -179,7 +144,8 @@ async function renderMatrix() {
 
   let cases = [];
   try {
-    cases = await apiFetch("/cases?view=matrix");
+    const qs = filtersToQuery({ ...currentFilters, view: "matrix" });
+    cases = await apiFetch(`/cases${qs}`);
   } catch (err) {
     console.error(err);
   }
@@ -202,8 +168,13 @@ async function renderMatrix() {
   const maxSolve = Math.max(...cases.map((c) => Number(c.solve_count) || 0), 1);
   cases.sort((a, b) => bubbleSize(b) - bubbleSize(a));
   const placed = [];
+  const nextSnapshot = new Map();
 
   for (const c of cases) {
+    const key = caseSnapshotKey(c);
+    nextSnapshot.set(c.id, key);
+    const updated = prevSnapshot.has(c.id) && prevSnapshot.get(c.id) !== key;
+
     const base = basePosition(c, plot, maxSolve);
     const bounds = {
       maxX: INSET.left + base.innerW,
@@ -211,6 +182,98 @@ async function renderMatrix() {
     };
     const { x, y } = resolveCollision(base.x, base.y, base.size, placed, bounds);
     placed.push({ x, y, size: base.size });
-    plot.appendChild(renderBubble(c, { x, y, size: base.size }));
+    plot.appendChild(renderBubble(c, { x, y, size: base.size }, updated));
   }
+
+  prevSnapshot = nextSnapshot;
+  loadMetricsLegend();
+}
+
+export function mount(container) {
+  container.innerHTML = `
+    <div class="matrix-page">
+      <header class="matrix-page-header">
+        <p class="page-eyebrow">Case Matrix</p>
+        <h1 class="page-title page-title--serif">Pressure vs. Progress</h1>
+        <p class="page-lead">
+          Visualize active case momentum across pain and solve counts. Each node is a living problem,
+          framed within the bronze/patina system.
+        </p>
+      </header>
+      <div id="matrix-filters" class="matrix-filters-wrap"></div>
+      <div class="matrix-layout">
+        <aside class="matrix-legend">
+          <h2 class="matrix-legend__title">Legend &amp; Narrative</h2>
+          <div class="matrix-legend__item">
+            <div class="matrix-legend__item-head">
+              <span class="legend-dot legend-dot--grey"></span>
+              Unresolved
+            </div>
+            <p>Cases still waiting for traction.</p>
+          </div>
+          <div class="matrix-legend__item">
+            <div class="matrix-legend__item-head">
+              <span class="legend-dot legend-dot--orange"></span>
+              Claimed
+            </div>
+            <p>Bronze-problem nodes that teams are engaging.</p>
+          </div>
+          <div class="matrix-legend__item">
+            <div class="matrix-legend__item-head">
+              <span class="legend-dot legend-dot--green"></span>
+              Resolved
+            </div>
+            <p>Patina-solution nodes with progress built in.</p>
+          </div>
+          <p class="matrix-legend__footer" id="matrix-legend-stats">
+            Loading live stats…
+          </p>
+        </aside>
+        <div class="matrix-frame">
+          <span class="matrix-frame__expand" aria-hidden="true">⤢</span>
+          <div class="matrix-canvas">
+            <p class="matrix-label matrix-label-y">Pain intensity →</p>
+            <div class="matrix-plot-zone" id="matrix-plot-zone">
+              <div class="matrix-plot-inner" id="matrix-plot">
+                <div class="axis-line axis-h"></div>
+                <div class="axis-line axis-v"></div>
+              </div>
+            </div>
+            <p class="matrix-label matrix-label-x">Solve Count →</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const debouncedRender = debounce(() => renderMatrix(), 300);
+
+  const filterCleanup = mountCaseFilters(
+    document.getElementById("matrix-filters"),
+    {
+      domainOnly: true,
+      onChange: (filters) => {
+        currentFilters = filters;
+        renderMatrix();
+      },
+    }
+  );
+
+  renderMatrix();
+  pollTimer = setInterval(renderMatrix, POLL_MS);
+
+  resizeHandler = () => {
+    clearTimeout(resizeHandler._t);
+    resizeHandler._t = setTimeout(renderMatrix, 150);
+  };
+  window.addEventListener("resize", resizeHandler);
+
+  const unsubData = onDataChanged(debouncedRender);
+
+  return () => {
+    window.removeEventListener("resize", resizeHandler);
+    clearInterval(pollTimer);
+    unsubData();
+    filterCleanup?.();
+  };
 }
