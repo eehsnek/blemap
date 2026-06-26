@@ -1,9 +1,18 @@
+// 1. Force dotenv to initialize during the import phase (bypasses hoisting)
+import 'dotenv/config'; 
+
+// 2. Run your diagnostic logs next
+console.log("--- ENGINE DIAGNOSTIC ---");
+console.log("Is API Key Defined?:", !!process.env.GEMINI_API_KEY);
+console.log("Key Prefix:", process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.substring(0, 7) : "NONE");
+console.log("-------------------------");
+
+// 3. Now import your frameworks and internal application services safely
 import express from "express";
 import cors from "cors";
 import { createClient } from "@supabase/supabase-js";
-import dotenv from "dotenv";
-
-dotenv.config();
+import { cosineSimilarity } from "./utils/similarity.js";
+import { generateCaseTitle } from "./service/geminiService.js";
 
 const supabase = createClient(
   "https://kktedcwrxsrkbyzxchjt.supabase.co",
@@ -27,6 +36,7 @@ app.get("/api/reddit", async (req, res) => {
   }
 });
 
+// TEST ENDPOINTS - REMOVE LATER | improve with actual pre-case data from Supabase
 app.get("/api/test", (req, res) => {
   const dummyPosts = [
     { title: "Tenant facing eviction despite valid lease", 
@@ -58,32 +68,43 @@ app.get("/api/test", (req, res) => {
 
 app.get("/api/post", async (req, res) => {
   try {
-    // Check if dummy posts already exist
-    const { data: existing, error: selectError } = await supabase
+    // 1. Get top story IDs
+    const response = await fetch(
+      "https://hacker-news.firebaseio.com/v0/topstories.json"
+    );
+
+    const ids = await response.json();
+
+    // 2. Take only first 10 (avoid overload)
+    const top10 = ids.slice(0, 10);
+
+    // 3. Fetch full details for each story
+    const posts = await Promise.all(
+      top10.map(async (id) => {
+        const itemRes = await fetch(
+          `https://hacker-news.firebaseio.com/v0/item/${id}.json`
+        );
+
+        const item = await itemRes.json();
+
+        return {
+          title: item.title,
+          permalink: item.url || `https://news.ycombinator.com/item?id=${id}`,
+          subreddit: "HackerNews"
+        };
+      })
+    );
+
+    // 4. Insert into Supabase
+    const { data, error } = await supabase
       .from("precase")
-      .select("*")
-      .eq("subreddit", "Law");
+      .insert(posts)
+      .select();
 
-    if (selectError) throw selectError;
-
-    if (existing && existing.length > 0) {
-      console.log("Dummy posts already exist, skipping insert");
-      return res.json({ inserted: existing });
-    }
-
-    // Insert only if none exist
-    const dummyPosts = [
-      { title: "Tenant facing eviction despite valid lease", permalink: "/r/Law/comments/eviction_case", subreddit: "Law" },
-      { title: "Employee fired after reporting workplace safety violations", permalink: "/r/Law/comments/whistleblower_case", subreddit: "Law" },
-      { title: "Small business sued over unpaid supplier contract", permalink: "/r/Law/comments/contract_dispute", subreddit: "Law" },
-      { title: "Neighbor builds fence encroaching on property line", permalink: "/r/Law/comments/property_dispute", subreddit: "Law" },
-      { title: "Consumer charged hidden fees despite advertised price", permalink: "/r/Law/comments/consumer_rights_case", subreddit: "Law" }
-    ];
-
-    const { data, error } = await supabase.from("precase").insert(dummyPosts).select();
     if (error) throw error;
 
     res.json({ inserted: data });
+
   } catch (err) {
     console.error("Insert error:", err);
     res.status(500).json({ error: err.message });
@@ -94,6 +115,130 @@ app.get("/api/get", async (req, res) => {
   const { data, error } = await supabase.from("precase").select("*");
   if (error) return res.status(500).json({ error: error.message });
   res.json({ posts: data });
+});
+
+app.get("/api/cases/rebuild", async (req, res) => {
+  try {
+    const { data: precases, error } = await supabase
+      .from("precase")
+      .select("*");
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    const valid = precases
+      .map(p => ({
+        ...p,
+        embedding:
+          typeof p.embedding === "string"
+            ? JSON.parse(p.embedding)
+            : p.embedding
+      }))
+      .filter(p => Array.isArray(p.embedding));
+
+    valid.sort((a, b) => a.id - b.id);
+
+    const clusters = [];
+    const used = new Set();
+
+    for (let i = 0; i < valid.length; i++) {
+      if (used.has(valid[i].id)) continue;
+
+      const cluster = [valid[i]];
+      used.add(valid[i].id);
+
+      for (let j = i + 1; j < valid.length; j++) {
+        if (used.has(valid[j].id)) continue;
+
+        const similarity = cosineSimilarity(
+          valid[i].embedding,
+          valid[j].embedding
+        );
+
+        if (similarity > 0.80) {
+          cluster.push(valid[j]);
+          used.add(valid[j].id);
+        }
+      }
+
+      clusters.push(cluster);
+    }
+
+    // Delete old cases
+    await supabase
+      .from("cases")
+      .delete()
+      .neq("id", 0);
+
+    let caseIndex = 1;
+
+    for (const cluster of clusters) {
+
+      let topic;
+      let summary;
+
+      // Skip AI if only one post
+      if (cluster.length === 1) {
+
+        topic = cluster[0].title;
+        summary = cluster[0].title;
+
+      } else {
+
+        try {
+          const titles = cluster.map(c => c.title);
+
+          const aiOutput = await generateCaseTitle(titles);
+          const parsed = JSON.parse(aiOutput);
+
+          topic = parsed.title;
+          summary = parsed.summary;
+        } catch (err) {
+          console.error("Gemini failed:", err);
+
+          topic = `Case ${caseIndex}`;
+          summary = cluster[0].title;
+        }
+      }
+
+      const { error: insertError } = await supabase
+        .from("cases")
+        .insert({
+          topic,
+          summary,
+          permalinks: cluster.map(c => c.permalink),
+          subreddits: [...new Set(cluster.map(c => c.subreddit))],
+          ai_status: "bulk-generated",
+          lifecycle_state: "grey",
+          aggregated_at: new Date(),
+          claim_count: 0,
+          pain_count: 0,
+          solve_count: 0
+        });
+
+      if (insertError) {
+        console.error(insertError);
+      }
+
+      caseIndex++;
+    }
+
+    console.log("TOTAL PRECASES:", precases.length);
+    console.log("WITH EMBEDDINGS:", valid.length);
+    console.log("TYPE:", typeof precases[0].embedding);
+
+    res.json({
+      status: "ok",
+      clusters_created: clusters.length
+    });
+
+  } catch (err) {
+    console.error("rebuild error:", err);
+    res.status(500).json({
+      error: err.message
+    });
+  }
 });
 
 app.get("/api/cases/:id", async (req, res) => {
@@ -142,63 +287,191 @@ app.get("/api/cases/:id", async (req, res) => {
   }
 });
 
-app.get("/api/aggregate", async (req, res) => {
+app.get("/api/cluster-cases", async (req, res) => {
   try {
-    // 1. Fetch precase rows
-    const { data: precase, error } = await supabase.from("precase").select("*");
-    if (error) throw error;
-    if (!precase || precase.length === 0) {
-      return res.json({ message: "No precase rows to aggregate." });
+    const { data: precases, error: fetchError } = await supabase
+      .from("precase")
+      .select("*");
+
+    if (fetchError) throw fetchError;
+
+    const embedded = await Promise.all(
+      precases.map(async (post) => {
+        try {
+          if (!post.title) {
+            return { ...post, skipped: true };
+          }
+
+          // 🔥 CALL PYTHON EMBEDDING SERVICE
+          const response = await fetch("http://localhost:8000/embed", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ text: post.title }),
+          });
+
+          if (!response.ok) {
+            throw new Error("Embedding service failed");
+          }
+
+          const { embedding } = await response.json();
+
+          if (!embedding || !Array.isArray(embedding)) {
+            return { ...post, embedding: null, skipped: true };
+          }
+
+          console.log("Updating ID:", post.id);
+          console.log("Embedding sample:", embedding.slice(0, 5));
+
+          // 🔥 WRITE TO SUPABASE
+          const { data, error: updateError } = await supabase
+            .from("precase")
+            .update({ embedding })
+            .eq("id", post.id)
+            .select();
+
+          if (updateError) {
+            console.error("UPDATE FAILED:", updateError);
+            return { ...post, error: updateError.message };
+          }
+
+          return {
+            ...post,
+            embedding
+          };
+
+        } catch (err) {
+          console.error("Embedding failed for ID:", post.id, err);
+
+          return {
+            ...post,
+            embedding: null,
+            error: err.message
+          };
+        }
+      })
+    );
+
+    const successCount = embedded.filter(p => p?.embedding).length;
+
+    res.json({
+      total: embedded.length,
+      success: successCount,
+      posts: embedded
+    });
+
+  } catch (err) {
+    console.error("Cluster-cases error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/cases/assign/:precaseId", async (req, res) => {
+  const { precaseId } = req.params;
+
+  try {
+    // STEP 1: fetch precase
+    const { data: precase, error } = await supabase
+      .from("precase")
+      .select("*")
+      .eq("id", precaseId)
+      .single();
+
+    if (error || !precase) {
+      return res.status(404).json({ error: "Precase not found" });
     }
 
-    // 2. Define grouping manually (2+2+1)
-    const caseGroups = [
+    if (!precase.embedding) {
+      return res.status(400).json({ error: "No embedding found" });
+    }
+
+    // STEP 2: find similar case
+    const { data: similarCases, error: rpcError } = await supabase.rpc(
+      "match_cases",
       {
-        topic: "Housing & Property Issues",
-        posts: precase.filter(p =>
-          p.title.toLowerCase().includes("eviction") ||
-          p.title.toLowerCase().includes("neighbor") ||
-          p.title.toLowerCase().includes("property")
-        )
-      },
-      {
-        topic: "Business & Consumer Face Problems",
-        posts: precase.filter(p =>
-          p.title.toLowerCase().includes("contract") ||
-          p.title.toLowerCase().includes("supplier") ||
-          p.title.toLowerCase().includes("consumer") ||
-          p.title.toLowerCase().includes("fees")
-        )
-      },
-      {
-        topic: "National Work Crisis",
-        posts: precase.filter(p =>
-          p.title.toLowerCase().includes("employee") ||
-          p.title.toLowerCase().includes("workplace")
-        )
+        query_embedding: precase.embedding,
+        match_threshold: 0.75,
+        match_count: 1,
       }
-    ];
+    );
 
-    // 3. Merge into cohesive cases
-    const casesToInsert = caseGroups.map(group => ({
-      topic: group.topic,
-      summary: `${group.topic} case: ${group.posts.map(p => p.title).join("; ")}`,
-      permalinks: group.posts.map(p => p.permalink),
-      subreddits: [...new Set(group.posts.map(p => p.subreddit))],
-      ai_status: "aggregated"
-    }));
+    if (rpcError) {
+      return res.status(500).json({ error: rpcError.message });
+    }
 
-    // 4. Insert into cases table
-    const { data: cases, error: insertError } = await supabase
+    let targetCase;
+
+    // STEP 3: decide attach or create
+    if (similarCases && similarCases.length > 0) {
+      targetCase = similarCases[0];
+
+      // fetch full case (important!)
+      const { data: existingCase } = await supabase
+        .from("cases")
+        .select("*")
+        .eq("id", targetCase.id)
+        .single();
+
+      // STEP 4: update existing case
+      const { data: updated, error: updateError } = await supabase
+        .from("cases")
+        .update({
+          permalinks: [
+            ...(existingCase.permalinks || []),
+            precase.permalink,
+          ],
+          subreddits: [
+            ...(existingCase.subreddits || []),
+            precase.subreddit,
+          ],
+          aggregated_at: new Date(),
+        })
+        .eq("id", targetCase.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        return res.status(500).json({ error: updateError.message });
+      }
+
+      return res.json({
+        action: "attached_to_existing_case",
+        case: updated,
+      });
+    }
+
+    // STEP 5: create new case
+    const { data: newCase, error: insertError } = await supabase
       .from("cases")
-      .insert(casesToInsert)
-      .select();
-    if (insertError) throw insertError;
+      .insert({
+        topic: precase.title,
+        summary: precase.title,
+        permalinks: [precase.permalink],
+        subreddits: [precase.subreddit],
+        ai_status: "auto-created",
+        lifecycle_state: "grey",
+        aggregated_at: new Date(),
 
-    res.json({ aggregated: cases });
+        claim_count: 0,
+        pain_count: 0,
+        solve_count: 0,
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      return res.status(500).json({ error: insertError.message });
+    }
+
+    return res.json({
+      action: "created_new_case",
+      case: newCase,
+    });
+
   } catch (err) {
-    console.error("Aggregate error:", err);
-    res.status(500).json({ error: err.message });
+    console.error("assign-case error:", err);
+    return res.status(500).json({ error: err.message });
   }
 });
 

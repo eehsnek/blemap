@@ -3,30 +3,518 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login</title>
-  <link href="../frontend/output.css" rel="stylesheet">
-  <link rel="icon" href="data:,">
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <title>BleMap</title>
+  <meta name="theme-color" content="#13100d">
+  <link rel="icon" href="/frontend/assets/logo.jpeg" type="image/jpeg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --bg: #13100d;
+      --surface: #1b1612;
+      --surface-strong: #201a16;
+      --surface-soft: #2a231d;
+      --line: rgba(83, 68, 56, 0.45);
+      --text: #e5e2e1;
+      --muted: rgba(229, 226, 225, 0.68);
+      --muted-strong: rgba(229, 226, 225, 0.85);
+      --bronze: #cd7f32;
+      --bronze-soft: #ffb779;
+      --patina: #43e2d2;
+      --patina-soft: #7ff4ea;
+      --danger: #e07a7a;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      font-family: "DM Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(67, 226, 210, 0.12), transparent 34%),
+        radial-gradient(circle at 80% 20%, rgba(205, 127, 50, 0.14), transparent 30%),
+        linear-gradient(180deg, #17130f 0%, var(--bg) 42%, #110e0c 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.5), transparent 85%);
+      opacity: 0.35;
+    }
+
+    .auth-page {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 32px 20px;
+    }
+
+    .auth-shell {
+      width: min(1160px, 100%);
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .brand-panel,
+    .auth-panel {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: rgba(27, 22, 18, 0.86);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 28px 72px rgba(0, 0, 0, 0.34);
+    }
+
+    .brand-panel {
+      min-height: 640px;
+      padding: 42px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border-radius: 24px 10px 24px 10px;
+    }
+
+    .brand-panel::after {
+      content: "";
+      position: absolute;
+      inset: auto -8% -18% auto;
+      width: 260px;
+      height: 260px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(67, 226, 210, 0.16), transparent 70%);
+      pointer-events: none;
+    }
+
+    .brand-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .brand-mark img {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      object-fit: cover;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--patina);
+      text-transform: uppercase;
+      letter-spacing: 0.24em;
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+
+    .brand-title {
+      margin: 0;
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: clamp(2rem, 5vw, 4rem);
+      line-height: 0.92;
+      letter-spacing: 0;
+      max-width: 9ch;
+    }
+
+    .brand-copy {
+      margin: 18px 0 0;
+      max-width: 44rem;
+      color: var(--muted);
+      font-size: 1.02rem;
+      line-height: 1.75;
+    }
+
+    .brand-notes {
+      margin-top: 28px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .note {
+      padding: 16px;
+      border-radius: 14px;
+      background: rgba(32, 26, 22, 0.72);
+      border: 1px solid rgba(83, 68, 56, 0.32);
+    }
+
+    .note span {
+      display: block;
+      font-size: 0.76rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--patina);
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+
+    .note p {
+      margin: 0;
+      color: var(--muted-strong);
+      line-height: 1.5;
+      font-size: 0.96rem;
+    }
+
+    .auth-panel {
+      border-radius: 10px 24px 10px 24px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 640px;
+    }
+
+    .auth-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 18px;
+      padding: 6px;
+      border-radius: 16px;
+      background: rgba(19, 16, 13, 0.8);
+      border: 1px solid rgba(83, 68, 56, 0.28);
+    }
+
+    .auth-tab {
+      appearance: none;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      background: transparent;
+      color: var(--muted-strong);
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+    }
+
+    .auth-tab:hover {
+      transform: translateY(-1px);
+      color: var(--text);
+    }
+
+    .auth-tab.is-active-login {
+      background: linear-gradient(135deg, var(--bronze), var(--bronze-soft));
+      color: #18120f;
+    }
+
+    .auth-tab.is-active-register {
+      background: linear-gradient(135deg, var(--patina), var(--patina-soft));
+      color: #101313;
+    }
+
+    .auth-header {
+      margin-bottom: 18px;
+    }
+
+    .auth-header h2 {
+      margin: 0;
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: 2.4rem;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .auth-header p {
+      margin: 10px 0 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .auth-pane {
+      display: grid;
+      gap: 14px;
+    }
+
+    .auth-field {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid rgba(83, 68, 56, 0.42);
+      background: rgba(19, 16, 13, 0.92);
+      color: var(--text);
+      padding: 14px 16px;
+      outline: none;
+      transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+
+    .auth-field::placeholder {
+      color: rgba(229, 226, 225, 0.42);
+    }
+
+    .auth-field:focus {
+      border-color: rgba(67, 226, 210, 0.8);
+      box-shadow: 0 0 0 3px rgba(67, 226, 210, 0.12);
+      transform: translateY(-1px);
+    }
+
+    .auth-actions {
+      display: grid;
+      gap: 12px;
+      margin-top: 4px;
+    }
+
+    .auth-btn {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-weight: 700;
+      transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
+    }
+
+    .auth-btn:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.04);
+    }
+
+    .auth-btn-login {
+      background: linear-gradient(135deg, var(--bronze), var(--bronze-soft));
+      color: #17110e;
+      box-shadow: 0 16px 28px rgba(205, 127, 50, 0.16);
+    }
+
+    .auth-btn-register {
+      background: linear-gradient(135deg, var(--patina), var(--patina-soft));
+      color: #081314;
+      box-shadow: 0 16px 28px rgba(67, 226, 210, 0.16);
+    }
+
+    .auth-msg {
+      min-height: 1.5rem;
+      margin: 6px 0 14px;
+      font-size: 0.94rem;
+      line-height: 1.5;
+    }
+
+    .auth-note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    .auth-note button {
+      border: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--patina);
+      font-weight: 700;
+    }
+
+    [hidden] { display: none !important; }
+
+    @media (max-width: 980px) {
+      .auth-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .brand-panel,
+      .auth-panel {
+        min-height: auto;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .auth-page { padding: 16px; }
+      .brand-panel, .auth-panel { padding: 22px; }
+      .brand-title { max-width: 100%; }
+      .brand-notes { grid-template-columns: 1fr; }
+      .auth-header h2 { font-size: 2rem; }
+    }
+  </style>
 </head>
-<body class="min-h-screen bg-[#13100d] text-white">
-  <main class="min-h-screen flex items-center justify-center px-6">
-    <section class="w-full max-w-md bg-[#201a16] p-8 rounded border border-[#534438]/40">
-      <p class="text-sm uppercase tracking-wide text-[#43e2d2] mb-2">BleMap</p>
-      <h1 class="text-3xl font-bold mb-2">Welcome back</h1>
-      <p class="text-[#e5e2e1]/70 mb-8">Sign in to continue mapping problems and proposed solutions.</p>
-
-      <div class="space-y-4">
-        <input id="signin-email" class="w-full bg-[#13100d] text-white placeholder-[#e5e2e1]/45 px-4 py-3 rounded border border-[#534438]/40 focus:outline-none focus:border-[#ffb779]" type="email" placeholder="Email">
-        <input id="signin-password" class="w-full bg-[#13100d] text-white placeholder-[#e5e2e1]/45 px-4 py-3 rounded border border-[#534438]/40 focus:outline-none focus:border-[#ffb779]" type="password" placeholder="Password">
-        <button id="signin-btn" class="w-full bg-[#cd7f32] hover:bg-[#ffb779] text-[#13100d] font-semibold px-4 py-3 rounded transition">Sign In</button>
+<body>
+  <main class="auth-page">
+    <section class="auth-shell" aria-label="BleMap authentication">
+      <div class="brand-panel">
+        <div>
+          <div class="brand-mark">
+            <img src="/frontend/assets/logo.png" alt="BleMap logo">
+            <div>
+              <p class="eyebrow">BleMap</p>
+              <p style="margin:0;color:rgba(229,226,225,0.58);font-size:0.9rem;">The Living Archive</p>
+            </div>
+          </div>
+          <h1 class="brand-title">Map Out Problems.</h1>
+          <p class="brand-copy">
+            Sign in to map problems, validate cases, and move from static demo screens to a living case system that actually responds to the user.
+          </p>
+          <div class="brand-notes">
+            <div class="note">
+              <span>Dynamic</span>
+              <p>User input can create, update, and reshape case records.</p>
+            </div>
+            <div class="note">
+              <span>Visible</span>
+              <p>Similarity results and account actions are easy to inspect.</p>
+            </div>
+            <div class="note">
+              <span>Defensible</span>
+              <p>The flow is concrete enough to explain in a presentation.</p>
+            </div>
+          </div>
+        </div>
       </div>
-
-      <div id="message-box" class="mt-4 text-sm text-[#ffb779]"></div>
-
-      <button id="goRegisterBtn" class="mt-6 text-sm text-[#43e2d2] hover:text-[#7ff4ea]">Create an account</button>
+      <div class="auth-panel">
+        <div class="auth-tabs" role="tablist" aria-label="Authentication mode">
+          <button type="button" id="tab-login" class="auth-tab is-active-login" role="tab" aria-selected="true">Sign In</button>
+          <button type="button" id="tab-register" class="auth-tab" role="tab" aria-selected="false">Register</button>
+        </div>
+        <div class="auth-header">
+          <h2 id="auth-title">Welcome back</h2>
+          <p id="auth-copy">Sign in to continue mapping problems and proposed solutions.</p>
+        </div>
+        <div id="message-box" class="auth-msg" aria-live="polite"></div>
+        <form id="signin-pane" class="auth-pane" novalidate>
+          <input id="signin-email" class="auth-field" type="email" autocomplete="email" placeholder="Email" required>
+          <input id="signin-password" class="auth-field" type="password" autocomplete="current-password" placeholder="Password" required>
+          <div class="auth-actions">
+            <button id="signin-btn" type="submit" class="auth-btn auth-btn-login">Sign In</button>
+          </div>
+        </form>
+        <form id="signup-pane" class="auth-pane" hidden novalidate>
+          <input id="signup-email" class="auth-field" type="email" autocomplete="email" placeholder="Email" required>
+          <input id="signup-password" class="auth-field" type="password" autocomplete="new-password" placeholder="Password" required>
+          <div class="auth-actions">
+            <button id="signup-btn" type="submit" class="auth-btn auth-btn-register">Create Account</button>
+          </div>
+        </form>
+        <div class="auth-note" id="mode-note">
+          New here? Use the Register tab to create your account.
+        </div>
+      </div>
     </section>
   </main>
+  <script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
-  <script type="module" src="/frontend/login.js" defer></script>
+    const supabaseUrl = "https://kktedcwrxsrkbyzxchjt.supabase.co";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrdGVkY3dyeHNya2J5enhjaGp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNjMwNjQsImV4cCI6MjA5MzYzOTA2NH0.kMlmUDeAmpOnYlrUXqsuNFlJHoIFqYyrmFG8ewPHTK8";
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const loginTab = document.getElementById("tab-login");
+    const registerTab = document.getElementById("tab-register");
+    const loginPane = document.getElementById("signin-pane");
+    const registerPane = document.getElementById("signup-pane");
+    const authTitle = document.getElementById("auth-title");
+    const authCopy = document.getElementById("auth-copy");
+    const modeNote = document.getElementById("mode-note");
+    const messageBox = document.getElementById("message-box");
+    const signinEmail = document.getElementById("signin-email");
+    const signupEmail = document.getElementById("signup-email");
+
+    function setMessage(text, kind = "info") {
+      messageBox.textContent = text;
+      messageBox.style.color = kind === "error" ? "var(--danger)" : kind === "success" ? "var(--patina)" : "var(--bronze-soft)";
+    }
+
+    function setMode(mode) {
+      const isLogin = mode !== "register";
+      loginPane.hidden = !isLogin;
+      registerPane.hidden = isLogin;
+      loginTab.classList.toggle("is-active-login", isLogin);
+      registerTab.classList.toggle("is-active-register", !isLogin);
+      loginTab.setAttribute("aria-selected", String(isLogin));
+      registerTab.setAttribute("aria-selected", String(!isLogin));
+      authTitle.textContent = isLogin ? "Welcome back" : "Create account";
+      authCopy.textContent = isLogin
+        ? "Sign in to continue mapping problems and proposed solutions."
+        : "Join the workspace for tracking cases, claims, and proposed solutions.";
+      modeNote.innerHTML = isLogin
+        ? 'Need an account? Use the Register tab to create one.'
+        : 'Already have an account? Switch back to Sign In when you are ready.';
+      setMessage("");
+      const target = isLogin ? signinEmail : signupEmail;
+      window.location.hash = isLogin ? "login" : "register";
+      target?.focus();
+    }
+
+    async function handleSignIn(event) {
+      event.preventDefault();
+
+      const email = document.getElementById("signin-email").value.trim();
+      const password = document.getElementById("signin-password").value;
+
+      if (!email || !password) {
+        setMessage("Please enter your email and password.", "error");
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        setMessage(error.message, "error");
+        return;
+      }
+
+      setMessage("Login successful. Redirecting...", "success");
+      window.location.href = "/frontend/home.html";
+    }
+
+    async function handleSignUp(event) {
+      event.preventDefault();
+
+      const email = document.getElementById("signup-email").value.trim();
+      const password = document.getElementById("signup-password").value;
+
+      if (!email || !password) {
+        setMessage("Please enter your email and password.", "error");
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signUp({ email, password });
+
+      if (error) {
+        setMessage(error.message, "error");
+        return;
+      }
+
+      if (data?.user?.id) {
+        const { error: profileError } = await supabase
+          .from("users")
+          .upsert([
+            {
+              id: data.user.id,
+              email,
+              username: email.split("@")[0]
+            }
+          ], { onConflict: "id" });
+
+        if (profileError) {
+          setMessage(`Account created, but profile save needs a retry: ${profileError.message}`, "error");
+        } else {
+          setMessage("Registration successful. You can sign in now.", "success");
+        }
+      } else {
+        setMessage("Registration successful. Check your email for the next step.", "success");
+      }
+
+      loginPane.reset();
+      registerPane.reset();
+      setMode("login");
+      document.getElementById("signin-email").value = email;
+    }
+
+    loginTab.addEventListener("click", () => setMode("login"));
+    registerTab.addEventListener("click", () => setMode("register"));
+    loginPane.addEventListener("submit", handleSignIn);
+    registerPane.addEventListener("submit", handleSignUp);
+
+    const initialMode = window.location.hash === "#register" ? "register" : "login";
+    setMode(initialMode);
+  </script>
 </body>
 </html>
