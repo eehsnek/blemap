@@ -14,6 +14,10 @@ import { createClient } from "@supabase/supabase-js";
 import { cosineSimilarity } from "./utils/similarity.js";
 import { generateCaseTitle } from "./service/geminiService.js";
 
+// For the frontend implementation
+import { processSubmission } from "./services/submissionService.js";
+import { generateEmbedding } from "./services/embeddingService.js";
+
 const supabase = createClient(
   "https://kktedcwrxsrkbyzxchjt.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrdGVkY3dyeHNya2J5enhjaGp0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODA2MzA2NCwiZXhwIjoyMDkzNjM5MDY0fQ.3WyBDdmTqBWn5FXrGWy0IZuO-mhEmhWY68v_Oe4PKOY"
@@ -752,120 +756,29 @@ app.post("/api/solves/:id/accept", async (req, res) => {
 app.post("/api/submit", async (req, res) => {
   const { text } = req.body;
 
-  // 2. Protect against empty input
   if (!text || text.trim() === "") {
     return res.status(400).json({
       error: "Input required"
     });
   }
 
-  const lowerText = text.toLowerCase();
-
   try {
-    let caseId = null;
+    const embedding = await generateEmbedding(text);
 
-    // Mock semantic grouping (temporary AI simulation)
-    if (
-      lowerText.includes("eviction") ||
-      lowerText.includes("neighbor") ||
-      lowerText.includes("property")
-    ) {
-      caseId = 1; // Housing & Property Issues
+    const result = await processSubmission(
+      text,
+      embedding
+    );
 
-    } else if (
-      lowerText.includes("contract") ||
-      lowerText.includes("supplier") ||
-      lowerText.includes("consumer") ||
-      lowerText.includes("fees")
-    ) {
-      caseId = 2; // Business & Consumer Problems
-
-    } else if (
-      lowerText.includes("employee") ||
-      lowerText.includes("workplace")
-    ) {
-      caseId = 3; // Employment Issues
-    }
-
-    // Existing Case matched
-    if (caseId) {
-
-      const {
-        data: existingCase,
-        error: selectError
-      } = await supabase
-        .from("cases")
-        .select("*")
-        .eq("id", caseId)
-        .single();
-
-      if (selectError) throw selectError;
-
-      // 3. Safer summary merge
-      const updatedSummary =
-        (existingCase.summary || "") +
-        " | " +
-        text;
-
-      const {
-        data: updatedCase,
-        error: updateError
-      } = await supabase
-        .from("cases")
-        .update({
-          summary: updatedSummary
-        })
-        .eq("id", caseId)
-        .select()
-        .single();
-
-      if (updateError) throw updateError;
-
-      res.json({
-        message:
-          "This post matched with an existing case",
-        case: updatedCase,
-        matched: true
-      });
-
-    } else {
-
-      const newCase = {
-        topic: "New User Submitted Case",
-        summary: text,
-        pain_count: 0,
-        solve_count: 0,
-        claimed_by: null,
-        lifecycle_state: "grey",
-        permalinks: [],
-        subreddits: [],
-        ai_status: "user_submitted"
-      };
-
-      console.log("ABOUT TO INSERT:", newCase);
-
-      const { data, error } = await supabase
-        .from("cases")
-        .insert([newCase])
-        .select()
-        .single();
-
-      if (error) {
-        console.error("INSERT ERROR DETAILS:", error);
-        throw error;
-      }
-
-      return res.json({
-        case: data,
-        matched: false,
-        message: "New case created"
-      });
-    }
+    return res.json({
+      case: result,
+      matched: true
+    });
 
   } catch (err) {
     console.error("Submit error:", err);
 
-    res.status(500).json({
+    return res.status(500).json({
       error: err.message
     });
   }

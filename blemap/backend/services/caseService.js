@@ -63,9 +63,13 @@ export async function findNearestCase(queryEmbedding) {
     if (!bestPrecase || bestSimilarity < SIMILARITY_THRESHOLD) {
       return { case: null, precase: null, similarity: bestSimilarity };
     }
- 
+    
+    const linkedCase = bestPrecase?.case_id
+      ? await getCaseById(bestPrecase.case_id)
+      : null;
+    
     return {
-      case: null,
+      case: linkedCase,
       precase: bestPrecase,
       similarity: bestSimilarity,
     };

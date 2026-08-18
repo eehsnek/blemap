@@ -8,25 +8,35 @@ import {
 const SIMILARITY_THRESHOLD = 0.75;
 
 export async function processSubmission(description, embedding) {
-    const {
-        case: matchedCase,
-        precase,
-        similarity
-    } = await findNearestCase(embedding);
+  const {
+    case: matchedCase,
+    precase,
+    similarity
+  } = await findNearestCase(embedding);
 
-    if (similarity >= SIMILARITY_THRESHOLD) {
+  if (similarity >= SIMILARITY_THRESHOLD) {
 
-        if (matchedCase) {
-            return attachToExisting(
-                matchedCase,
-                description
-            );
-        }
-        
-        return createNewCase(description, precase);
-    }
+    const updatedCase = await attachToExistingCase(
+      matchedCase.id,
+      description
+    );
 
-    return createNewCase(description);
+    return {
+      matched: true,
+      case: updatedCase,
+      precase,
+      similarity
+    };
+  }
+
+  const newCase = await createNewCase(description);
+
+  return {
+    matched: false,
+    case: newCase,
+    precase,
+    similarity
+  };
 }
 
 // This is for testing purposes only

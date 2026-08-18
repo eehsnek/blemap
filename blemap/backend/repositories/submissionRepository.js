@@ -14,7 +14,6 @@ export async function createSubmission(description) {
     if (error) throw error;
 
     return data;
-
 }
 
 export async function updateSubmissionEmbedding(id, embedding) {
