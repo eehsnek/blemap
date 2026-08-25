@@ -3,9 +3,14 @@ import { getStore } from "../store/index.js";
 import { parseCaseFilters } from "../lib/caseFilters.js";
 import { optionalAuth, requireAuth, getUserId } from "../middleware/auth.js";
 import { requireCronOrUser } from "../middleware/cronAuth.js";
+import devAuthRouter from "./devAuth.js";
 
 const router = Router();
 router.use(optionalAuth);
+
+if (process.env.NODE_ENV !== "production") {
+  router.use("/dev", devAuthRouter);
+}
 
 function sendStoreError(res, result) {
   if (result?.error) {

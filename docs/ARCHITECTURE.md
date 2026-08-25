@@ -1,5 +1,10 @@
 # BleMap Architecture
 
+## Primary vs legacy
+
+- **Primary:** repository-root Main SPA (`backend/`, `frontend/`, `npm run dev` on port 4000).
+- **Legacy:** nested `blemap/` Summer prototype (embeddings, clustering). Not required for Main.
+
 ## System layers
 
 ```mermaid

@@ -54,7 +54,7 @@ async function geminiAnalyzeSolve(solveText, caseRow) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
 
-  const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
   const prompt = `You validate proposed solutions for BleMap cases.
 Return ONLY valid JSON with keys:
 isRelevant (boolean), qualityScore (0-1 float), rejectionMessage (string|null), suggestion (string|null).

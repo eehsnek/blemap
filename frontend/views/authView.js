@@ -130,10 +130,35 @@ function showRegisterForm() {
       options: { emailRedirectTo: `${window.location.origin}/frontend/app.html` },
     });
 
+    if (error) {
+      btn.disabled = false;
+      btn.textContent = "Create Account";
+      return msg(error.message, true);
+    }
+
+    // Local/dev: auto-confirm when project still has Confirm email enabled
+    if (!data.session && email) {
+      try {
+        await fetch("/api/dev/confirm-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const signedIn = await supabase.auth.signInWithPassword({ email, password });
+        if (signedIn.data?.session) {
+          btn.disabled = false;
+          btn.textContent = "Create Account";
+          msg("Account created! Opening your workspace…");
+          window.dispatchEvent(new CustomEvent("blemap:authenticated"));
+          return;
+        }
+      } catch {
+        /* fall through to email-confirm message */
+      }
+    }
+
     btn.disabled = false;
     btn.textContent = "Create Account";
-
-    if (error) return msg(error.message, true);
 
     if (data.session) {
       msg("Account created! Opening your workspace…");
