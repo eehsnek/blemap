@@ -222,8 +222,9 @@ async function loadPreCases() {
 function renderCard(c, user) {
   const card = document.createElement("div");
   const isPending = c.status === "pending";
-  const claimed = c.claimed_by === user.id;
+  const claimed = user?.id && c.claimed_by === user.id;
   const mergeCount = Array.isArray(c.permalinks) ? c.permalinks.length : 0;
+  const canValidate = Boolean(user?.id) && isPending && !c.user_confirmed;
 
   card.className = `rounded p-4 text-white cursor-pointer transition ${
     c.lifecycle_state === "green"
@@ -247,8 +248,9 @@ function renderCard(c, user) {
       </div>` : `<p class="text-xs text-[#e5e2e1]/45 mt-2">${(c.matrix_quadrant || "").replace(/_/g, " ")}</p>`}
     ${mergeCount > 1 ? `<p class="text-xs text-[#43e2d2]/60 mt-1">+${mergeCount - 1} signals merged</p>` : ""}
     <div class="flex flex-wrap gap-2 mt-3 action-buttons">
-      ${isPending && !c.user_confirmed ? `<button type="button" class="btn-validate bg-[#43e2d2] text-[#13100d] font-semibold px-3 py-1 rounded text-sm">Validate</button>` : ""}
+      ${canValidate ? `<button type="button" class="btn-validate bg-[#43e2d2] text-[#13100d] font-semibold px-3 py-1 rounded text-sm">Validate</button>` : ""}
       ${isPending && c.user_confirmed ? `<span class="text-xs text-[#43e2d2] py-1">You validated</span>` : ""}
+      ${isPending && !user?.id ? `<span class="text-xs text-[#e5e2e1]/50 py-1">Sign in to validate</span>` : ""}
       ${c.status === "published" ? `
         <button type="button" class="btn-claim bg-[#cd7f32] text-[#13100d] font-semibold px-3 py-1 rounded text-sm">${claimed ? "Unclaim" : "Claim"}</button>
         <button type="button" class="btn-pain bg-[#2a2a2a] text-[#ffb779] px-3 py-1 rounded text-sm">${c.user_pained ? "Unpain" : "Pain"}</button>
@@ -274,6 +276,13 @@ function renderCard(c, user) {
 function wireCardActions(card, c, user) {
   card.querySelector(".btn-validate")?.addEventListener("click", async (e) => {
     e.stopPropagation();
+    if (!user?.id) {
+      alert("Please sign in to validate.");
+      return;
+    }
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = "Validating…";
     try {
       const r = await apiFetch(`/cases/${c.id}/confirm`, { method: "POST", body: "{}" });
       emitDataChanged("validate");
@@ -281,6 +290,8 @@ function wireCardActions(card, c, user) {
       await loadCases(user);
       loadActivity();
     } catch (err) {
+      btn.disabled = false;
+      btn.textContent = "Validate";
       alert(err.message);
     }
   });

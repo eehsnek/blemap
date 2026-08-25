@@ -118,7 +118,7 @@ router.get("/cases/:id/events", async (req, res, next) => {
 
 router.get("/cases/:id", async (req, res, next) => {
   try {
-    const c = await getStore().getCase(req.params.id);
+    const c = await getStore().getCase(req.params.id, getUserId(req));
     if (!c) return res.status(404).json({ error: "Case not found" });
     res.json(c);
   } catch (err) {

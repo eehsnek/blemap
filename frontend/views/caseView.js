@@ -246,6 +246,11 @@ function bindCaseActions(id, user) {
   );
 
   document.getElementById("validate-case")?.addEventListener("click", async () => {
+    const btn = document.getElementById("validate-case");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Validating…";
+    }
     try {
       const r = await apiFetch(`/cases/${id}/confirm`, { method: "POST", body: "{}" });
       emitDataChanged("validate");
@@ -260,6 +265,10 @@ function bindCaseActions(id, user) {
       }
       await loadCaseDetails(id);
     } catch (err) {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Validate";
+      }
       alert(err.message);
     }
   });

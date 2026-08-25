@@ -122,14 +122,14 @@ function createSupabaseStore() {
         .sort((a, b) => b.gap_score - a.gap_score);
     },
 
-    async getCase(id) {
+    async getCase(id, userId = null) {
       const { data: c, error } = await supabase
         .from("cases")
         .select("*")
         .eq("id", id)
         .maybeSingle();
       if (error || !c) return null;
-      return enrichRow(c, null, await maxPain());
+      return enrichRow(c, userId, await maxPain());
     },
 
     async getRelatedCases(id, { limit = 5 } = {}) {
@@ -306,7 +306,7 @@ function createSupabaseStore() {
         confirmation_count: next,
         status,
         published: status === "published",
-        case: await this.getCase(caseId),
+        case: await this.getCase(caseId, userId),
       };
     },
 

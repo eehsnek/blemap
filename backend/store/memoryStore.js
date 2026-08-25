@@ -173,11 +173,20 @@ export function createMemoryStore() {
       return listEnriched(userId, { prospector: true, filters });
     },
 
-    async getCase(id) {
+    async getCase(id, userId = null) {
       const c = findCase(id);
       if (!c) return null;
       const caseSolves = solves.filter((s) => s.case_id === id);
-      return enrichCase(c, { solves: caseSolves, maxPain: maxPain() });
+      return enrichCase(
+        {
+          ...c,
+          user_confirmed: userId
+            ? confirmations.has(`${id}:${userId}`)
+            : false,
+          user_pained: userId ? painVotes.has(`${id}:${userId}`) : false,
+        },
+        { solves: caseSolves, maxPain: maxPain() }
+      );
     },
 
     async getRelatedCases(id, { limit = 5 } = {}) {
