@@ -217,6 +217,7 @@ Auth runs in the browser against **Supabase** (defaults in `shared/supabasePubli
    - Run `npm run configure:auth` (with optional `SUPABASE_ACCESS_TOKEN` for Dashboard settings; otherwise SPA uses `POST /api/dev/confirm-email` in non-production).
 4. Run `database/migrations/003_auth_profile_trigger.sql` in the Supabase SQL editor if profiles fail to create.
 5. Enable Realtime on `cases`, `case_events`, `scrape_runs` (or run `database/migrations/007_realtime_publication.sql`).
+6. Verify the full path: `npm start` then `SMOKE_SKIP_SCRAPE=1 npm run smoke` (sign-up → confirm → submit → 5 validates → published).
 
 **Reusing the Summer Supabase project** — Yes. Point `.env` at that project and run [`database/migrations/006_main_compat_on_summer.sql`](database/migrations/006_main_compat_on_summer.sql). See [`database/MIGRATE_SUMMER_SUPABASE.md`](database/MIGRATE_SUMMER_SUPABASE.md).
 
