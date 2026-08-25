@@ -341,7 +341,7 @@ export function createMemoryStore() {
         confirmation_count: c.confirmation_count,
         status: c.status,
         published: c.status === "published",
-        case: enrichCase(c, { maxPain: maxPain() }),
+        case: await this.getCase(caseId, userId),
       };
     },
 
