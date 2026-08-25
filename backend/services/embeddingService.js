@@ -21,8 +21,9 @@ export function embeddingBaseUrl() {
 }
 
 export function embeddingThreshold() {
-  const n = Number(process.env.EMBEDDING_THRESHOLD ?? 0.75);
-  return Number.isFinite(n) ? n : 0.75;
+  // Used as default merge threshold when EMBEDDING_MERGE_THRESHOLD unset
+  const n = Number(process.env.EMBEDDING_THRESHOLD ?? 0.65);
+  return Number.isFinite(n) ? n : 0.65;
 }
 
 async function embedViaHttp(text) {

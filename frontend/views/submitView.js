@@ -161,14 +161,68 @@ function renderRejection(draft) {
 function renderSuccessPreview(draft) {
   const s = draft.structured;
   const dup = draft.isDuplicate;
+  const match = draft.duplicateCase;
+  const related = draft.related || [];
   const painPct = Math.round((s.pain_level ?? 0.5) * 100);
+  const simPct =
+    draft.embeddingSimilarity != null
+      ? Math.round(Number(draft.embeddingSimilarity) * 100)
+      : null;
+
+  if (dup && match) {
+    return `
+    <div class="submit-feedback submit-feedback--ok space-y-3">
+      <h2 class="submit-feedback__title text-[#ffb779]">Existing case found</h2>
+      <p class="text-sm text-[#e5e2e1]/70">
+        Your description matches a problem already on BleMap
+        ${simPct != null ? `(${simPct}% similar)` : ""}.
+        Confirm to add your report to that case instead of creating a new one.
+      </p>
+      <div class="submit-preview-card border border-[#ffb779]/40">
+        <p class="text-xs uppercase tracking-wide text-[#43e2d2]/80 mb-1">Matched case</p>
+        <p class="font-bold text-lg text-[#ffb779]">${escapeHtml(match.topic || "Untitled")}</p>
+        <p class="mt-2 text-[#e5e2e1]/85">${escapeHtml(match.summary || "")}</p>
+        <p class="mt-2 text-xs text-[#e5e2e1]/50">Status: ${escapeHtml(match.status || "—")}</p>
+      </div>
+      <div class="flex flex-wrap gap-2 pt-2">
+        <button type="button" id="confirm-btn" class="bg-[#cd7f32] text-[#13100d] font-semibold px-4 py-2 rounded">Add to this case</button>
+        <button type="button" id="open-match-btn" class="btn-ghost text-sm">Open case</button>
+        <button type="button" id="force-new-btn" class="text-[#e5e2e1]/50 text-sm px-3 underline">Create new case anyway</button>
+        <button type="button" id="cancel-btn" class="text-[#e5e2e1]/60 px-3">Cancel</button>
+      </div>
+    </div>`;
+  }
+
+  const suggestions =
+    !dup && related.length
+      ? `
+      <div class="submit-preview-card">
+        <p class="text-xs uppercase tracking-wide text-[#43e2d2]/80 mb-2">Possible existing cases</p>
+        <ul class="space-y-2">
+          ${related
+            .map(
+              (r) => `
+            <li class="flex items-start justify-between gap-2">
+              <div>
+                <p class="font-semibold text-[#ffb779] text-sm">${escapeHtml(r.topic || "Untitled")}</p>
+                <p class="text-xs text-[#e5e2e1]/60 line-clamp-2">${escapeHtml(r.summary || "")}</p>
+              </div>
+              <button type="button" class="merge-suggest btn-secondary text-xs shrink-0" data-id="${escapeHtml(r.id)}" data-sim="${r.similarity}">
+                Use this (${Math.round(Number(r.similarity) * 100)}%)
+              </button>
+            </li>`
+            )
+            .join("")}
+        </ul>
+      </div>`
+      : "";
 
   return `
     <div class="submit-feedback submit-feedback--ok space-y-3">
       <h2 class="submit-feedback__title text-[#ffb779]">Review before posting</h2>
       <p class="text-sm text-[#e5e2e1]/60">After you confirm, the case stays <strong class="text-[#43e2d2]">pending</strong> until the community validates it — then it appears on the Matrix.</p>
       ${s.disclaimer ? `<p class="text-sm text-[#43e2d2]">${escapeHtml(s.disclaimer)}</p>` : ""}
-      ${dup ? `<p class="text-sm text-[#ffb779]">Looks similar to an existing case — confirming will merge your signal (+1 pain).</p>` : ""}
+      ${suggestions}
       <div class="submit-preview-card">
         <p class="text-xs uppercase tracking-wide text-[#43e2d2]/80 mb-1">Structured topic</p>
         <p class="font-bold text-lg text-[#ffb779]">${escapeHtml(s.topic)}</p>
@@ -180,7 +234,7 @@ function renderSuccessPreview(draft) {
         </div>
       </div>
       <div class="flex gap-2 pt-2">
-        <button type="button" id="confirm-btn" class="bg-[#cd7f32] text-[#13100d] font-semibold px-4 py-2 rounded">${dup ? "Confirm merge" : "Confirm & submit"}</button>
+        <button type="button" id="confirm-btn" class="bg-[#cd7f32] text-[#13100d] font-semibold px-4 py-2 rounded">Confirm & submit</button>
         <button type="button" id="cancel-btn" class="text-[#e5e2e1]/60 px-3">Cancel</button>
       </div>
     </div>`;
@@ -281,12 +335,43 @@ async function runAnalyze() {
     output.innerHTML = renderSuccessPreview(currentDraft);
     const dup = currentDraft.isDuplicate;
 
-    document.getElementById("confirm-btn").addEventListener("click", () =>
-      confirmDraft(dup, output)
+    document.getElementById("confirm-btn")?.addEventListener("click", () =>
+      confirmDraft({ merge: dup, forceNew: false }, output)
     );
-    document.getElementById("cancel-btn").addEventListener("click", () => {
+    document.getElementById("force-new-btn")?.addEventListener("click", () =>
+      confirmDraft({ merge: false, forceNew: true }, output)
+    );
+    document.getElementById("open-match-btn")?.addEventListener("click", () => {
+      const id = currentDraft.duplicateCaseId;
+      if (id) navigate("case", { id });
+    });
+    document.getElementById("cancel-btn")?.addEventListener("click", () => {
       currentDraft = null;
       output.innerHTML = "";
+    });
+    output.querySelectorAll(".merge-suggest").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        currentDraft.isDuplicate = true;
+        currentDraft.duplicateCaseId = btn.dataset.id;
+        currentDraft.duplicateCase =
+          (currentDraft.related || []).find((r) => String(r.id) === String(btn.dataset.id)) ||
+          currentDraft.duplicateCase;
+        currentDraft.embeddingSimilarity = Number(btn.dataset.sim);
+        output.innerHTML = renderSuccessPreview(currentDraft);
+        document.getElementById("confirm-btn")?.addEventListener("click", () =>
+          confirmDraft({ merge: true, forceNew: false }, output)
+        );
+        document.getElementById("force-new-btn")?.addEventListener("click", () =>
+          confirmDraft({ merge: false, forceNew: true }, output)
+        );
+        document.getElementById("open-match-btn")?.addEventListener("click", () => {
+          navigate("case", { id: currentDraft.duplicateCaseId });
+        });
+        document.getElementById("cancel-btn")?.addEventListener("click", () => {
+          currentDraft = null;
+          output.innerHTML = "";
+        });
+      });
     });
   } catch (err) {
     output.innerHTML = `<p class="text-[#ffb779]">${escapeHtml(err.message)}</p>`;
@@ -297,7 +382,7 @@ async function runAnalyze() {
   }
 }
 
-async function confirmDraft(isDuplicate, output) {
+async function confirmDraft({ merge, forceNew }, output) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     alert("Please sign in first.");
@@ -309,20 +394,23 @@ async function confirmDraft(isDuplicate, output) {
       method: "POST",
       body: JSON.stringify({
         draftId: currentDraft.draftId,
-        mergeIntoCaseId: isDuplicate ? currentDraft.duplicateCaseId : undefined,
+        mergeIntoCaseId:
+          merge && !forceNew ? currentDraft.duplicateCaseId : undefined,
+        forceNew: Boolean(forceNew),
       }),
     });
 
     emitDataChanged("submit");
 
     const caseId = result.case?.id;
+    const matched = Boolean(result.matched);
     output.innerHTML = `
       <div class="submit-feedback submit-feedback--ok">
-        <h2 class="submit-feedback__title text-[#43e2d2]">Submitted</h2>
+        <h2 class="submit-feedback__title text-[#43e2d2]">${matched ? "Added to existing case" : "Submitted"}</h2>
         <p class="submit-feedback__body">${escapeHtml(result.message || result.case?.summary || "")}</p>
         <div class="flex flex-wrap gap-3 mt-4">
-          <button type="button" id="goto-home" class="btn-primary text-sm">View on Home →</button>
-          ${caseId && !result.matched ? `<button type="button" id="goto-case" class="btn-ghost text-sm">Open case</button>` : ""}
+          ${caseId ? `<button type="button" id="goto-case" class="btn-primary text-sm">${matched ? "Open matched case →" : "Open case →"}</button>` : ""}
+          <button type="button" id="goto-home" class="btn-ghost text-sm">Home</button>
         </div>
       </div>`;
 
@@ -336,10 +424,14 @@ async function confirmDraft(isDuplicate, output) {
     currentDraft = null;
     updateChecklist();
 
-    document.getElementById("goto-home").addEventListener("click", () => navigate("home"));
+    document.getElementById("goto-home")?.addEventListener("click", () => navigate("home"));
     document.getElementById("goto-case")?.addEventListener("click", () =>
       navigate("case", { id: caseId })
     );
+
+    if (matched && caseId) {
+      setTimeout(() => navigate("case", { id: caseId }), 600);
+    }
   } catch (err) {
     alert(err.message);
   }

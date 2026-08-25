@@ -3,6 +3,7 @@ import {
   MIN_SUBMIT_WORDS,
   normalizeSubmitText,
 } from "../lib/normalizeSubmitText.js";
+import { classifyMatches } from "../services/caseSimilarity.js";
 
 const LAW_KEYWORDS = /\b(court|lawyer|legal|sue|tenant|landlord|contract)\b/i;
 const MED_KEYWORDS = /\b(doctor|hospital|diagnosis|medicine|symptom|prescription)\b/i;
@@ -191,38 +192,30 @@ function enrichRejection(result, originalText) {
 
 function applyEmbeddingMatches(result, embeddingMatches = [], existingCases = []) {
   if (!result) return result;
-  const related = embeddingMatches.map((m) => ({
-    id: m.id,
-    topic: m.topic,
-    summary: m.summary,
-    status: m.status,
-    similarity: m.similarity,
-  }));
+  const classified = classifyMatches(embeddingMatches, existingCases);
 
   if (result.isValid === false) {
-    return { ...result, related };
+    return { ...result, related: classified.related };
   }
 
-  const top = embeddingMatches[0];
-  if (top) {
-    const full =
-      existingCases.find((c) => String(c.id) === String(top.id)) || top;
+  // Embedding merge wins over weak Gemini/heuristic duplicate guesses
+  if (classified.isDuplicate) {
     return {
       ...result,
       isDuplicate: true,
-      duplicateCaseId: top.id,
-      duplicateCase: full,
-      embeddingSimilarity: top.similarity,
-      related,
+      duplicateCaseId: classified.duplicateCaseId,
+      duplicateCase: classified.duplicateCase,
+      embeddingSimilarity: classified.similarity,
+      related: classified.related,
       matchSource: "embedding",
     };
   }
 
   return {
     ...result,
-    related,
-    embeddingSimilarity: 0,
-    matchSource: result.matchSource ?? null,
+    related: classified.related,
+    embeddingSimilarity: classified.similarity || 0,
+    matchSource: classified.matchSource,
   };
 }
 

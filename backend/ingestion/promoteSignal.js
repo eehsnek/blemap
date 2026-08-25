@@ -57,6 +57,7 @@ export async function promoteSignal(signal, adapter) {
     ? await findSimilarCases(embedding, {
         candidates: existingCases,
         matchCount: 5,
+        threshold: Number(process.env.EMBEDDING_SUGGEST_THRESHOLD ?? 0.5),
       })
     : [];
 

@@ -173,12 +173,13 @@ router.post("/submit/analyze", async (req, res, next) => {
 
 router.post("/submit/confirm", requireAuth, async (req, res, next) => {
   try {
-    const { draftId, mergeIntoCaseId } = req.body ?? {};
+    const { draftId, mergeIntoCaseId, forceNew } = req.body ?? {};
     if (!draftId) return res.status(400).json({ error: "draftId is required" });
     const result = await getStore().confirmSubmit({
       draftId,
       userId: getUserId(req),
       mergeIntoCaseId,
+      forceNew: Boolean(forceNew),
     });
     if (sendStoreError(res, result)) return;
     res.json(result);

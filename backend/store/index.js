@@ -156,6 +156,8 @@ function createSupabaseStore() {
         ? await findSimilarCases(embedding, {
             candidates: rows,
             matchCount: 5,
+            // suggest floor; classifyMatches applies merge threshold
+            threshold: Number(process.env.EMBEDDING_SUGGEST_THRESHOLD ?? 0.5),
           })
         : [];
       const analysis = await analyzeSubmission(text, rows, { embeddingMatches });
@@ -174,7 +176,7 @@ function createSupabaseStore() {
       };
     },
 
-    async confirmSubmit({ draftId, userId, mergeIntoCaseId }) {
+    async confirmSubmit({ draftId, userId, mergeIntoCaseId, forceNew = false }) {
       const draft = drafts.get(draftId);
       if (!draft) return { error: "Draft not found", status: 404 };
       const { analysis } = draft;
@@ -182,7 +184,10 @@ function createSupabaseStore() {
         return { error: analysis.rejectionMessage, status: 400 };
       }
 
-      if (mergeIntoCaseId || analysis.isDuplicate) {
+      const shouldMerge =
+        !forceNew && Boolean(mergeIntoCaseId || analysis.isDuplicate);
+
+      if (shouldMerge) {
         const id = mergeIntoCaseId || analysis.duplicateCaseId;
         const c = await this.getCase(id);
         if (!c) return { error: "Case not found", status: 404 };
@@ -191,7 +196,22 @@ function createSupabaseStore() {
           .update({ pain_count: c.pain_count + 1 })
           .eq("id", id);
         drafts.delete(draftId);
-        return { matched: true, case: await this.getCase(id) };
+        await logEvent({
+          caseId: id,
+          eventType: "merged_signal",
+          actorId: userId,
+          source: "user",
+          metadata: {
+            via: "embedding",
+            similarity: analysis.embeddingSimilarity ?? null,
+          },
+        }).catch(() => {});
+        return {
+          matched: true,
+          case: await this.getCase(id),
+          message:
+            "Matched an existing case — your report was added as +1 pain. Opening that case.",
+        };
       }
 
       const s = analysis.structured;

@@ -200,6 +200,7 @@ export function createMemoryStore() {
         ? await findSimilarCases(embedding, {
             candidates: cases,
             matchCount: 5,
+            threshold: Number(process.env.EMBEDDING_SUGGEST_THRESHOLD ?? 0.5),
           })
         : [];
       const analysis = await analyzeSubmission(text, cases, { embeddingMatches });
@@ -215,7 +216,7 @@ export function createMemoryStore() {
       return { draftId, ...analysis, embeddingAvailable: Boolean(embedding) };
     },
 
-    async confirmSubmit({ draftId, userId, mergeIntoCaseId }) {
+    async confirmSubmit({ draftId, userId, mergeIntoCaseId, forceNew = false }) {
       const draft = drafts.get(draftId);
       if (!draft) return { error: "Draft not found or expired", status: 404 };
       if (draft.user_id && userId && draft.user_id !== userId) {
@@ -227,7 +228,10 @@ export function createMemoryStore() {
         return { error: analysis.rejectionMessage || "Invalid submission", status: 400 };
       }
 
-      if (mergeIntoCaseId || analysis.isDuplicate) {
+      const shouldMerge =
+        !forceNew && Boolean(mergeIntoCaseId || analysis.isDuplicate);
+
+      if (shouldMerge) {
         const targetId = mergeIntoCaseId || analysis.duplicateCaseId;
         const existing = findCase(targetId);
         if (!existing) return { error: "Duplicate case not found", status: 404 };
@@ -236,6 +240,8 @@ export function createMemoryStore() {
         return {
           matched: true,
           case: enrichCase(existing, { maxPain: maxPain() }),
+          message:
+            "Matched an existing case — your report was added as +1 pain. Opening that case.",
         };
       }
 

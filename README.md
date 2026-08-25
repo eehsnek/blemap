@@ -228,7 +228,7 @@ Same model as Summer (`all-MiniLM-L6-v2`, 384-dim):
 2. Default: **in-process** embeddings via `@xenova/transformers` (no Python).
 3. Optional FastAPI service (Python 3.10–3.12): `cd services/embedding && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt` then `npm run embed:serve` and set `EMBEDDING_PREFER_HTTP=1`.
 4. Backfill existing cases: `npm run embed:rebuild`.
-5. Submit/scrape use similarity ≥ `EMBEDDING_THRESHOLD` (default `0.75`) to merge duplicates; case detail shows **Related cases**.
+5. Submit/scrape **merge into an existing case** when similarity ≥ `EMBEDDING_MERGE_THRESHOLD` (default `0.65`); weaker matches (default ≥ `0.5`) appear as suggestions you can pick. Case detail also shows **Related cases**.
 
 **Reusing the Summer Supabase project** — Yes. Point `.env` at that project and run [`database/migrations/006_main_compat_on_summer.sql`](database/migrations/006_main_compat_on_summer.sql). See [`database/MIGRATE_SUMMER_SUPABASE.md`](database/MIGRATE_SUMMER_SUPABASE.md).
 

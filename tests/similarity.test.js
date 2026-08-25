@@ -32,11 +32,22 @@ test("findSimilarCases falls back to candidates when RPC unavailable", async () 
   assert.ok(matches[0].similarity > 0.9);
 });
 
-test("duplicateFromMatches marks top hit", () => {
+test("duplicateFromMatches marks top hit above merge threshold", () => {
   const dup = duplicateFromMatches(
     [{ id: "x", topic: "T", summary: "S", status: "published", similarity: 0.9 }],
     []
   );
   assert.equal(dup.isDuplicate, true);
   assert.equal(dup.duplicateCaseId, "x");
+});
+
+test("classifyMatches suggests but does not auto-merge below threshold", async () => {
+  const { classifyMatches } = await import("../backend/services/caseSimilarity.js");
+  const result = classifyMatches(
+    [{ id: "y", topic: "Y", summary: "S", status: "published", similarity: 0.55 }],
+    []
+  );
+  assert.equal(result.isDuplicate, false);
+  assert.equal(result.related.length, 1);
+  assert.equal(result.matchSource, "embedding_suggest");
 });
