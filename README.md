@@ -18,10 +18,6 @@ Problem intelligence platform: validate and structure real-world problems, plot 
 | UI | `frontend/app.html` (+ hash router views) |
 | Run | `npm run dev` → **http://localhost:4000** |
 
-The nested `blemap/` folder is a **legacy Summer prototype** (embeddings / clustering / profile-report). It is **not** the primary app. Do not start it for normal development unless you are explicitly working on that prototype. MiniLM on `:8000` is deferred while Main is primary.
-
----
-
 ## How to run the application
 
 BleMap is **one app**: a single **Node/Express backend** serves the UI and the REST API. You do **not** start a separate frontend dev server.

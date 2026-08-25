@@ -62,5 +62,4 @@ Expect `"store":"supabase"` (not `"memory"`).
 
 - Existing Summer data is preserved (same `cases` table).
 - Case IDs stay numeric (199, …), not UUIDs — Main’s API accepts that.
-- Nested `blemap/` can keep using the same project; Main is still the primary app.
 - Do not commit real keys to git; `.env` is gitignored.

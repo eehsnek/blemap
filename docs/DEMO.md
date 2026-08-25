@@ -18,7 +18,7 @@ Open http://localhost:4000
 
 4. **Prospector** — Prospector view → pick highest gap case → **Claim** → add solution → **Accept** as claimant.
 
-5. **Scrape** — Prospector → **Run Reddit scrape** → new cases from live subreddits.
+5. **Scrape** — Prospector → **Run ingest scrape** → new cases from Hacker News (Reddit if OAuth is configured).
 
 ## Talking points
 

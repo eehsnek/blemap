@@ -38,6 +38,7 @@ app.get("/config.js", (_req, res) => {
 app.use("/api", apiRouter);
 
 app.get("/", (_req, res) => res.redirect("/frontend/app.html"));
+app.get("/frontend/index.html", (_req, res) => res.redirect("/frontend/app.html"));
 app.get("/frontend/home.html", (_req, res) => res.redirect("/frontend/app.html#/home"));
 app.get("/frontend/caseMatrix.html", (_req, res) => res.redirect("/frontend/app.html#/matrix"));
 app.get("/frontend/input.html", (_req, res) => res.redirect("/frontend/app.html#/submit"));
