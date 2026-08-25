@@ -88,6 +88,7 @@ export function createSupabaseIngestionAdapter(supabase, fetchCasesQuery) {
         source: row.source,
         cta_text: row.cta_text,
         created_at: new Date().toISOString(),
+        ...(row.embedding ? { embedding: row.embedding } : {}),
       });
       if (error) throw error;
 

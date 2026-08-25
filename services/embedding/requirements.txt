@@ -1,0 +1,6 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+sentence-transformers>=3.0.0,<4
+pydantic>=2.0.0
+# Requires Python 3.10–3.12 (torch wheels). Prefer Node MiniLM via @xenova/transformers
+# unless you explicitly want this FastAPI service.

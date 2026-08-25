@@ -32,6 +32,7 @@ coverage/
 # Python
 __pycache__/
 *.pyc
+services/embedding/.venv/
 
 # Local frontend overrides
 frontend/config.local.js

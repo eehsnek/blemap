@@ -126,6 +126,17 @@ router.get("/cases/:id", async (req, res, next) => {
   }
 });
 
+router.get("/cases/:id/related", async (req, res, next) => {
+  try {
+    const store = getStore();
+    if (!store.getRelatedCases) return res.json([]);
+    const limit = Math.min(Number(req.query.limit) || 5, 20);
+    res.json(await store.getRelatedCases(req.params.id, { limit }));
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post("/cases/:id/solve/analyze", async (req, res, next) => {
   try {
     const solveText = req.body?.solve_text?.trim();

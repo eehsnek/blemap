@@ -49,7 +49,20 @@ export async function promoteSignal(signal, adapter) {
 
   const text = `${title}. ${body}`.trim();
   const existingCases = await adapter.getCasesForAnalysis();
-  const analysis = await analyzeSubmission(text, existingCases);
+
+  const { generateEmbedding } = await import("../services/embeddingService.js");
+  const { findSimilarCases } = await import("../services/caseSimilarity.js");
+  const embedding = await generateEmbedding(text);
+  const embeddingMatches = embedding
+    ? await findSimilarCases(embedding, {
+        candidates: existingCases,
+        matchCount: 5,
+      })
+    : [];
+
+  const analysis = await analyzeSubmission(text, existingCases, {
+    embeddingMatches,
+  });
 
   if (!analysis.isValid) {
     await adapter.updatePrecase(permalink, {
@@ -124,6 +137,7 @@ export async function promoteSignal(signal, adapter) {
     raw_input: text,
     source,
     cta_text: s.cta_text,
+    ...(embedding ? { embedding } : {}),
   };
 
   const created = await adapter.createCase(row);

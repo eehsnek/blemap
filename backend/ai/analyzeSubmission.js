@@ -189,17 +189,68 @@ function enrichRejection(result, originalText) {
   };
 }
 
-export async function analyzeSubmission(text, existingCases = []) {
+function applyEmbeddingMatches(result, embeddingMatches = [], existingCases = []) {
+  if (!result) return result;
+  const related = embeddingMatches.map((m) => ({
+    id: m.id,
+    topic: m.topic,
+    summary: m.summary,
+    status: m.status,
+    similarity: m.similarity,
+  }));
+
+  if (result.isValid === false) {
+    return { ...result, related };
+  }
+
+  const top = embeddingMatches[0];
+  if (top) {
+    const full =
+      existingCases.find((c) => String(c.id) === String(top.id)) || top;
+    return {
+      ...result,
+      isDuplicate: true,
+      duplicateCaseId: top.id,
+      duplicateCase: full,
+      embeddingSimilarity: top.similarity,
+      related,
+      matchSource: "embedding",
+    };
+  }
+
+  return {
+    ...result,
+    related,
+    embeddingSimilarity: 0,
+    matchSource: result.matchSource ?? null,
+  };
+}
+
+/**
+ * @param {string} text
+ * @param {object[]} [existingCases]
+ * @param {{ embeddingMatches?: object[] }} [opts]
+ */
+export async function analyzeSubmission(text, existingCases = [], opts = {}) {
   const normalized = normalizeSubmitText(text);
+  const embeddingMatches = opts.embeddingMatches || [];
   try {
     const gemini = await geminiAnalyze(normalized, existingCases);
     if (gemini?.isValid === false || gemini?.structured) {
-      return enrichRejection(gemini, normalized);
+      return applyEmbeddingMatches(
+        enrichRejection(gemini, normalized),
+        embeddingMatches,
+        existingCases
+      );
     }
   } catch (err) {
     console.warn("AI analyze fallback:", err.message);
   }
-  return heuristicAnalyze(normalized, existingCases);
+  return applyEmbeddingMatches(
+    heuristicAnalyze(normalized, existingCases),
+    embeddingMatches,
+    existingCases
+  );
 }
 
 export { MIN_SUBMIT_WORDS };

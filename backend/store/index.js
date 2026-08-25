@@ -132,12 +132,46 @@ function createSupabaseStore() {
       return enrichRow(c, null, await maxPain());
     },
 
+    async getRelatedCases(id, { limit = 5 } = {}) {
+      const { data: c } = await supabase
+        .from("cases")
+        .select("id, embedding")
+        .eq("id", id)
+        .maybeSingle();
+      if (!c?.embedding) return [];
+      const { findSimilarCases } = await import("../services/caseSimilarity.js");
+      const matches = await findSimilarCases(c.embedding, {
+        matchCount: limit + 1,
+        threshold: 0.5,
+      });
+      return matches.filter((m) => String(m.id) !== String(id)).slice(0, limit);
+    },
+
     async analyzeSubmit({ text, userId }) {
+      const { generateEmbedding } = await import("../services/embeddingService.js");
+      const { findSimilarCases } = await import("../services/caseSimilarity.js");
       const rows = await fetchCasesQuery();
-      const analysis = await analyzeSubmission(text, rows);
+      const embedding = await generateEmbedding(text);
+      const embeddingMatches = embedding
+        ? await findSimilarCases(embedding, {
+            candidates: rows,
+            matchCount: 5,
+          })
+        : [];
+      const analysis = await analyzeSubmission(text, rows, { embeddingMatches });
       const draftId = randomUUID();
-      drafts.set(draftId, { id: draftId, raw_input: text, user_id: userId, analysis });
-      return { draftId, ...analysis };
+      drafts.set(draftId, {
+        id: draftId,
+        raw_input: text,
+        user_id: userId,
+        analysis,
+        embedding,
+      });
+      return {
+        draftId,
+        ...analysis,
+        embeddingAvailable: Boolean(embedding),
+      };
     },
 
     async confirmSubmit({ draftId, userId, mergeIntoCaseId }) {
@@ -161,6 +195,19 @@ function createSupabaseStore() {
       }
 
       const s = analysis.structured;
+      let embedding = draft.embedding;
+      if (!embedding) {
+        const { generateEmbedding, textForCaseEmbedding } = await import(
+          "../services/embeddingService.js"
+        );
+        embedding = await generateEmbedding(
+          textForCaseEmbedding({
+            topic: s.topic,
+            summary: s.summary,
+            raw_input: draft.raw_input,
+          })
+        );
+      }
       const { data, error } = await supabase
         .from("cases")
         .insert({
@@ -177,6 +224,7 @@ function createSupabaseStore() {
           source: "user",
           cta_text: s.cta_text,
           submitted_by: userId,
+          ...(embedding ? { embedding } : {}),
         })
         .select()
         .single();

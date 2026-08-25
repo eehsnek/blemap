@@ -180,17 +180,39 @@ export function createMemoryStore() {
       return enrichCase(c, { solves: caseSolves, maxPain: maxPain() });
     },
 
+    async getRelatedCases(id, { limit = 5 } = {}) {
+      const c = findCase(id);
+      if (!c?.embedding) return [];
+      const { findSimilarCases } = await import("../services/caseSimilarity.js");
+      const matches = await findSimilarCases(c.embedding, {
+        candidates: cases,
+        matchCount: limit + 1,
+        threshold: 0.5,
+      });
+      return matches.filter((m) => String(m.id) !== String(id)).slice(0, limit);
+    },
+
     async analyzeSubmit({ text, userId }) {
-      const analysis = await analyzeSubmission(text, cases);
+      const { generateEmbedding } = await import("../services/embeddingService.js");
+      const { findSimilarCases } = await import("../services/caseSimilarity.js");
+      const embedding = await generateEmbedding(text);
+      const embeddingMatches = embedding
+        ? await findSimilarCases(embedding, {
+            candidates: cases,
+            matchCount: 5,
+          })
+        : [];
+      const analysis = await analyzeSubmission(text, cases, { embeddingMatches });
       const draftId = randomUUID();
       drafts.set(draftId, {
         id: draftId,
         raw_input: text,
         user_id: userId,
         analysis,
+        embedding,
         created_at: Date.now(),
       });
-      return { draftId, ...analysis };
+      return { draftId, ...analysis, embeddingAvailable: Boolean(embedding) };
     },
 
     async confirmSubmit({ draftId, userId, mergeIntoCaseId }) {
@@ -218,6 +240,19 @@ export function createMemoryStore() {
       }
 
       const s = analysis.structured;
+      let embedding = draft.embedding;
+      if (!embedding) {
+        const { generateEmbedding, textForCaseEmbedding } = await import(
+          "../services/embeddingService.js"
+        );
+        embedding = await generateEmbedding(
+          textForCaseEmbedding({
+            topic: s.topic,
+            summary: s.summary,
+            raw_input: draft.raw_input,
+          })
+        );
+      }
       const created = {
         id: randomUUID(),
         topic: s.topic,
@@ -237,6 +272,7 @@ export function createMemoryStore() {
         source: "user",
         cta_text: s.cta_text,
         submitted_by: userId,
+        embedding: embedding || null,
         created_at: new Date().toISOString(),
       };
       cases.push(created);

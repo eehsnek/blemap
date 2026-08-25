@@ -31,6 +31,7 @@ Do **not** open HTML files from Finder (`file://`). Do **not** use `localhost` w
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) 18+ and npm
+- Optional embeddings: Python 3.10+ (MiniLM service on `:8000`)
 
 ### 1. Install
 
@@ -219,6 +220,16 @@ Auth runs in the browser against **Supabase** (defaults in `shared/supabasePubli
 5. Enable Realtime on `cases`, `case_events`, `scrape_runs` (or run `database/migrations/007_realtime_publication.sql`).
 6. Verify the full path: `npm start` then `SMOKE_SKIP_SCRAPE=1 npm run smoke` (sign-up → confirm → submit → 5 validates → published).
 
+### Embeddings (MiniLM)
+
+Same model as Summer (`all-MiniLM-L6-v2`, 384-dim):
+
+1. Migration [`database/migrations/008_case_embeddings.sql`](database/migrations/008_case_embeddings.sql) adds `cases.embedding` + `match_cases` RPC (already applied on the connected project).
+2. Default: **in-process** embeddings via `@xenova/transformers` (no Python).
+3. Optional FastAPI service (Python 3.10–3.12): `cd services/embedding && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt` then `npm run embed:serve` and set `EMBEDDING_PREFER_HTTP=1`.
+4. Backfill existing cases: `npm run embed:rebuild`.
+5. Submit/scrape use similarity ≥ `EMBEDDING_THRESHOLD` (default `0.75`) to merge duplicates; case detail shows **Related cases**.
+
 **Reusing the Summer Supabase project** — Yes. Point `.env` at that project and run [`database/migrations/006_main_compat_on_summer.sql`](database/migrations/006_main_compat_on_summer.sql). See [`database/MIGRATE_SUMMER_SUPABASE.md`](database/MIGRATE_SUMMER_SUPABASE.md).
 
 **“Email rate limit exceeded”** — Supabase temporarily blocked more auth emails (too many sign-ups or resends). Wait 15–60 minutes, use a different email (e.g. `you+test2@gmail.com`), or disable confirm-email for dev.
@@ -238,6 +249,7 @@ Auth runs in the browser against **Supabase** (defaults in `shared/supabasePubli
 | Search/filter cases | ✅ |
 | AI solve validation (advisory) | ✅ |
 | HN + Reddit scrape + scheduled automation | ✅ |
+| MiniLM embeddings + related cases / merge | ✅ |
 | Prospector view | ✅ |
 
 Docs: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/ERD.md`](docs/ERD.md) · [`docs/DEMO.md`](docs/DEMO.md)

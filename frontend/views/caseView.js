@@ -79,6 +79,8 @@ async function loadCaseDetails(id) {
     const mergeCount = Array.isArray(c.permalinks) ? c.permalinks.length : 0;
     const firstLink = mergeCount ? c.permalinks[0] : null;
 
+    const related = await apiFetch(`/cases/${id}/related?limit=5`).catch(() => []);
+
     container.innerHTML = `
       <div class="case-panel rounded-2xl p-6 border border-[#534438]/30 bg-[#201a16]">
         <h1 class="text-2xl font-bold text-[#ffb779] mb-2">${escapeHtml(c.topic)}</h1>
@@ -87,6 +89,25 @@ async function loadCaseDetails(id) {
         ${gapHistory ? `<p class="text-xs text-[#43e2d2]/70 mb-4">Gap was ${gapHistory.was} → now ${gapHistory.now}</p>` : ""}
         ${c.disclaimer ? `<p class="text-sm text-[#43e2d2]/80 mb-4 border-l-2 border-[#43e2d2]/40 pl-3">${escapeHtml(c.disclaimer)}</p>` : ""}
         ${mergeCount > 0 ? `<p class="text-sm text-[#e5e2e1]/60 mb-4">+${mergeCount} signal${mergeCount > 1 ? "s" : ""} merged${firstLink ? ` · <a href="${escapeHtml(firstLink)}" target="_blank" rel="noopener" class="text-[#43e2d2] underline">source</a>` : ""}</p>` : ""}
+        ${
+          Array.isArray(related) && related.length
+            ? `<div class="mb-6">
+          <h2 class="text-sm font-semibold text-[#ffb779] mb-2">Related cases</h2>
+          <ul class="space-y-2">
+            ${related
+              .map(
+                (r) => `<li>
+              <button type="button" class="related-case text-left text-sm text-[#43e2d2] hover:underline" data-id="${escapeHtml(r.id)}">
+                ${escapeHtml(r.topic || "Untitled")}
+                <span class="text-[#e5e2e1]/50"> · ${(Number(r.similarity) * 100).toFixed(0)}% similar</span>
+              </button>
+            </li>`
+              )
+              .join("")}
+          </ul>
+        </div>`
+            : ""
+        }
 
         ${isPending ? `
           <div class="mb-4">
@@ -135,6 +156,9 @@ async function loadCaseDetails(id) {
 
     bindCaseActions(id, user);
     wireSolveFeedback(id);
+    container.querySelectorAll(".related-case").forEach((btn) => {
+      btn.addEventListener("click", () => navigate("case", { id: btn.dataset.id }));
+    });
   } catch (err) {
     container.innerHTML = `<p class="text-[#ffb779]">${escapeHtml(err.message)}</p>`;
   }
