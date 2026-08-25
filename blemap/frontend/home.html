@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home Page</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="design-system.css">
+</head>
+<body class="bg-[#13100d] text-white">
+  <div class="min-h-screen flex">
+    <nav class="sidebar-nav">
+      <div>
+        <div class="nav-brand">BleMap</div>
+
+        <div class="nav-links">
+          <a href="home.html" class="nav-link active">Home</a>
+          <a href="input.html" class="nav-link">New Case</a>
+          <a href="profile.html" class="nav-link">Profile</a>
+          <a href="caseMatrix.html" class="nav-link">Case Matrix</a>
+        </div>
+      </div>
+
+      <div class="nav-tagline">
+        The Living Archive · Case System
+      </div>
+    </nav>
+    <main class="main-content">
+      <header class="flex items-center justify-between gap-4 mb-8">
+        <div>
+          <p class="text-sm uppercase tracking-wide text-[#43e2d2]">Living Archive</p>
+          <h1 class="text-3xl font-bold">Cases</h1>
+        </div>
+        <button id="signout-btn" class="bg-[#cd7f32] hover:bg-[#ffb779] text-[#13100d] font-semibold px-4 py-2 rounded transition">Sign Out</button>
+      </header>
+
+      <div id="message-box" class="mb-3 text-sm text-[#ffb779]"></div>
+      <div id="auth-status" class="mb-6 text-sm text-[#e5e2e1]/70">Not logged in</div>
+      <div id="profile"></div>
+
+      <section class="mb-10">
+        <h2 class="text-xl font-semibold mb-4 text-[#ffb779]">Case Map</h2>
+        <div id="cases" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3"></div>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold mb-4 text-[#43e2d2]">Pre-Case</h2>
+        <ul id="reddit-feed" class="space-y-3 text-[#e5e2e1]/80"></ul>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="home.js" defer></script>
+</body>
+</html>

@@ -1,6 +1,37 @@
-node_modules/
+# ─────────────────────────────────────────
+# BlemMap .gitignore
+# ─────────────────────────────────────────
+
+# Environment variables — NEVER commit these
 .env
 .env.local
-frontend/config.local.js
-.DS_Store
+.env.production
+
+# Dependencies
+node_modules/
+
+# Vercel
+.vercel/
+
+# Logs
+logs/
 *.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Test coverage
+coverage/
+
+# Python
+__pycache__/
+*.pyc
+
+# Local frontend overrides
+frontend/config.local.js

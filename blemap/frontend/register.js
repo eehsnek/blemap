@@ -1,0 +1,52 @@
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+const supabaseUrl = "https://kktedcwrxsrkbyzxchjt.supabase.co";
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrdGVkY3dyeHNya2J5enhjaGp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNjMwNjQsImV4cCI6MjA5MzYzOTA2NH0.kMlmUDeAmpOnYlrUXqsuNFlJHoIFqYyrmFG8ewPHTK8";
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+const signupBtn = document.getElementById('signup-btn');
+const goLogInBtn = document.getElementById('goLogInBtn');
+const messageBox = document.getElementById('message-box');
+
+if (signupBtn) {
+  signupBtn.addEventListener('click', async () => {
+    const email = document.getElementById('signup-email').value;
+    const password = document.getElementById('signup-password').value;
+
+    if (!email || !password) {
+      messageBox.textContent = "❌ Please enter email and password";
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signUp({ email, password });
+
+    if (error) {
+      messageBox.textContent = "❌ " + error.message;
+    } else {
+      // Insert user record into users table
+      const { error: insertError } = await supabase
+        .from("users")
+        .insert([
+          {
+            id: data.user.id,
+            email: email,
+            username: email.split("@")[0] // Use email prefix as default username
+          }
+        ]);
+
+      if (insertError) {
+        messageBox.textContent = "❌ Failed to create user profile: " + insertError.message;
+      } else {
+        messageBox.textContent = "✅ Registration successful!";
+        // Redirect to login page after sign up
+        window.location.href = "/frontend/login.html";
+      }
+    }
+  });
+
+  if (goLogInBtn) {
+    goLogInBtn.addEventListener('click', () => {
+      window.location.href = "/frontend/index.html";
+    });
+  }
+}
