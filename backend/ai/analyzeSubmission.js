@@ -211,6 +211,19 @@ function applyEmbeddingMatches(result, embeddingMatches = [], existingCases = []
     };
   }
 
+  // Keep Gemini/heuristic duplicate if present; still surface related suggestions
+  if (result.isDuplicate && result.duplicateCaseId) {
+    const fromRelated = classified.related.find(
+      (r) => String(r.id) === String(result.duplicateCaseId)
+    );
+    return {
+      ...result,
+      embeddingSimilarity: fromRelated?.similarity ?? classified.similarity ?? 0,
+      related: classified.related.length ? classified.related : result.related,
+      matchSource: result.matchSource || "model",
+    };
+  }
+
   return {
     ...result,
     related: classified.related,
