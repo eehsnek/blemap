@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BleMap class diagram</title>
+  <style>
+    :root {
+      --bg: #13100d;
+      --panel: #1b1612;
+      --line: #534438;
+      --text: #e5e2e1;
+      --muted: #a39b94;
+      --accent: #cd7f32;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header { padding: 24px 28px 8px; }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    p { margin: 0; color: var(--muted); max-width: 760px; line-height: 1.45; }
+    .tabs { padding: 16px 28px; display: flex; gap: 8px; }
+    button {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--line);
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    button.active { background: var(--accent); color: #13100d; border-color: var(--accent); }
+    .frame {
+      margin: 0 28px 28px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      overflow: auto;
+    }
+    svg { display: block; width: 100%; height: auto; }
+    .note { padding: 0 28px 32px; color: var(--muted); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>BleMap class diagram</h1>
+    <p>Domain model with a proposed Admin role: check cases, supervise them, and override stuck solves. Print with Cmd+P to save a PDF.</p>
+  </header>
+  <div class="tabs">
+    <button id="tab-domain" class="active" type="button">Domain model</button>
+    <button id="tab-runtime" type="button">Runtime modules</button>
+  </div>
+  <div class="frame" id="stage"></div>
+  <p class="note">Admin extends User (hollow triangle). Open again with <code>open blemap-class-diagram.html</code>.</p>
+
+  <script>
+    const ENTITIES = [
+      { id: "Role", stereo: "entity", preview: ["id: serial", "name: user | guest | admin"], ops: [] },
+      { id: "Profile", stereo: "entity", preview: ["id: uuid", "role_id: int"], ops: [] },
+      { id: "User", stereo: "entity", preview: ["id: uuid", "email: text", "username: text"], ops: ["signUp()", "signIn()", "signOut()", "getProfile()"] },
+      { id: "Admin", stereo: "role", preview: ["id: uuid", "role: admin"], ops: ["reviewQueue()", "publishCase()", "hideCase()", "unclaimCase()", "overrideSolve()"] },
+      { id: "Precase", stereo: "entity", preview: ["id: bigint", "title: text", "permalink: text", "embedding: float[]"], ops: [] },
+      { id: "Case", stereo: "entity", preview: ["id: uuid", "topic: text", "lifecycle_state: grey|orange|green", "claimed_by: uuid", "resolved: bool"], ops: ["toggleClaim()", "addPain()", "addSolve()"] },
+      { id: "Submission", stereo: "entity", preview: ["id: uuid", "raw_text: text", "processing_status: text"], ops: ["processSubmission()"] },
+      { id: "CasePain", stereo: "entity", preview: ["case_id: uuid", "user_id: uuid", "pained_at: timestamp"], ops: [] },
+      { id: "CaseSolve", stereo: "entity", preview: ["id: uuid", "case_id: uuid", "solve_text: text", "accepted: bool"], ops: ["accept()", "unaccept()"] },
+      { id: "CaseReport", stereo: "entity", preview: ["id: uuid", "case_id: uuid", "reason: fake|harmful|irrelevant", "status: open|cleared|hidden"], ops: [] },
+    ];
+    const BOX = {
+      Role: { x: 24, y: 24, w: 200, h: 118 },
+      Profile: { x: 280, y: 24, w: 200, h: 118 },
+      User: { x: 536, y: 16, w: 220, h: 168 },
+      Admin: { x: 790, y: 16, w: 250, h: 196 },
+      Precase: { x: 24, y: 248, w: 240, h: 148 },
+      Case: { x: 320, y: 220, w: 280, h: 220 },
+      Submission: { x: 24, y: 430, w: 250, h: 132 },
+      CasePain: { x: 200, y: 540, w: 230, h: 132 },
+      CaseSolve: { x: 480, y: 540, w: 250, h: 164 },
+      CaseReport: { x: 790, y: 540, w: 250, h: 164 },
+    };
+    const ASSOCS = [
+      { from: "User", to: "Profile", fromCard: "1", toCard: "1", label: "auth.uid" },
+      { from: "Profile", to: "Role", fromCard: "*", toCard: "1", label: "has" },
+      { from: "User", to: "Case", fromCard: "1", toCard: "*", label: "claimed_by" },
+      { from: "User", to: "CaseSolve", fromCard: "1", toCard: "*", label: "submits" },
+      { from: "User", to: "CasePain", fromCard: "1", toCard: "*", label: "confirms" },
+      { from: "Case", to: "CaseSolve", fromCard: "1", toCard: "*", label: "has" },
+      { from: "Case", to: "CasePain", fromCard: "1", toCard: "*", label: "has" },
+      { from: "Precase", to: "Case", fromCard: "*", toCard: "1", label: "clustered into" },
+      { from: "Submission", to: "Case", fromCard: "*", toCard: "0..1", label: "matches or creates" },
+      { from: "Admin", to: "Case", fromCard: "1", toCard: "*", label: "supervises" },
+      { from: "Admin", to: "CaseSolve", fromCard: "1", toCard: "*", label: "override accept" },
+      { from: "Admin", to: "CaseReport", fromCard: "1", toCard: "*", label: "reviews" },
+      { from: "User", to: "CaseReport", fromCard: "1", toCard: "*", label: "flags" },
+      { from: "Case", to: "CaseReport", fromCard: "1", toCard: "*", label: "has" },
+    ];
+
+    function center(id) {
+      const b = BOX[id];
+      return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+    }
+    function edgePoint(fromId, toId) {
+      const a = BOX[fromId];
+      const ac = center(fromId);
+      const bc = center(toId);
+      const dx = bc.x - ac.x;
+      const dy = bc.y - ac.y;
+      if (Math.abs(dy) >= Math.abs(dx)) return dy > 0 ? { x: ac.x, y: a.y + a.h } : { x: ac.x, y: a.y };
+      return dx > 0 ? { x: a.x + a.w, y: ac.y } : { x: a.x, y: ac.y };
+    }
+
+    function domainSvg() {
+      const s = edgePoint("Admin", "User");
+      const t = edgePoint("User", "Admin");
+      const angle = Math.atan2(t.y - s.y, t.x - s.x);
+      const size = 10;
+      const p2x = t.x - size * Math.cos(angle - Math.PI / 6);
+      const p2y = t.y - size * Math.sin(angle - Math.PI / 6);
+      const p3x = t.x - size * Math.cos(angle + Math.PI / 6);
+      const p3y = t.y - size * Math.sin(angle + Math.PI / 6);
+      const gen = `
+        <line x1="${s.x}" y1="${s.y}" x2="${t.x}" y2="${t.y}" stroke="#cd7f32" />
+        <polygon points="${t.x},${t.y} ${p2x},${p2y} ${p3x},${p3y}" fill="#201a16" stroke="#cd7f32" />
+        <text x="${(s.x + t.x) / 2}" y="${(s.y + t.y) / 2 - 8}" text-anchor="middle" fill="#cd7f32" font-size="11">extends</text>
+      `;
+
+      const lines = ASSOCS.map((assoc) => {
+        const a = edgePoint(assoc.from, assoc.to);
+        const b = edgePoint(assoc.to, assoc.from);
+        const mx = (a.x + b.x) / 2;
+        const my = (a.y + b.y) / 2;
+        return `
+          <line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#8a7464" />
+          <text x="${mx}" y="${my - 8}" text-anchor="middle" fill="#cd7f32" font-size="11">${assoc.label}</text>
+          <text x="${(a.x * 2 + b.x) / 3}" y="${(a.y * 2 + b.y) / 3 + 12}" text-anchor="middle" fill="#a39b94" font-size="10">${assoc.fromCard}</text>
+          <text x="${(a.x + b.x * 2) / 3}" y="${(a.y + b.y * 2) / 3 + 12}" text-anchor="middle" fill="#a39b94" font-size="10">${assoc.toCard}</text>
+        `;
+      }).join("");
+
+      const boxes = ENTITIES.map((entity) => {
+        const box = BOX[entity.id];
+        const headerH = 36;
+        const attrH = Math.max(entity.preview.length, 1) * 16 + 10;
+        const attrs = entity.preview.map((attr, i) =>
+          `<text x="${box.x + 10}" y="${box.y + headerH + 16 + i * 16}" fill="#cfc8c2" font-size="11" font-family="ui-monospace, Menlo, monospace">${attr}</text>`
+        ).join("");
+        const ops = entity.ops.length ? `
+          <line x1="${box.x}" y1="${box.y + headerH + attrH}" x2="${box.x + box.w}" y2="${box.y + headerH + attrH}" stroke="#8a7464" />
+          ${entity.ops.map((op, i) =>
+            `<text x="${box.x + 10}" y="${box.y + headerH + attrH + 16 + i * 16}" fill="#e5e2e1" font-size="11" font-family="ui-monospace, Menlo, monospace">+ ${op}</text>`
+          ).join("")}
+        ` : "";
+        return `
+          <g>
+            <rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" fill="#201a16" stroke="#8a7464" />
+            <rect x="${box.x}" y="${box.y}" width="${box.w}" height="${headerH}" fill="#2a231d" stroke="#8a7464" />
+            <text x="${box.x + box.w / 2}" y="${box.y + 14}" text-anchor="middle" fill="#a39b94" font-size="10">«${entity.stereo}»</text>
+            <text x="${box.x + box.w / 2}" y="${box.y + 30}" text-anchor="middle" fill="#e5e2e1" font-size="13" font-weight="600">${entity.id}</text>
+            ${attrs}
+            ${ops}
+          </g>
+        `;
+      }).join("");
+
+      return `<svg viewBox="0 0 1060 740" xmlns="http://www.w3.org/2000/svg">${gen}${lines}${boxes}</svg>`;
+    }
+
+    function runtimeSvg() {
+      const nodes = [
+        { id: "index.html", x: 40, y: 40 },
+        { id: "home.js", x: 220, y: 40 },
+        { id: "input.js", x: 400, y: 40 },
+        { id: "caseMatrix.js", x: 580, y: 40 },
+        { id: "caseDetail.js", x: 760, y: 40 },
+        { id: "profile.js", x: 40, y: 110 },
+        { id: "adminView.js", x: 220, y: 110 },
+        { id: "server.js", x: 400, y: 250 },
+        { id: "requireAdmin", x: 620, y: 250 },
+        { id: "supabase.js", x: 40, y: 250 },
+        { id: "geminiService", x: 200, y: 400 },
+        { id: "similarity", x: 400, y: 400 },
+        { id: "embedding_service.py", x: 600, y: 400 },
+      ];
+      const edges = [
+        ["index.html", "supabase.js"],
+        ["index.html", "home.js"],
+        ["home.js", "server.js"],
+        ["input.js", "server.js"],
+        ["caseMatrix.js", "server.js"],
+        ["caseDetail.js", "server.js"],
+        ["profile.js", "server.js"],
+        ["adminView.js", "server.js"],
+        ["adminView.js", "requireAdmin"],
+        ["server.js", "requireAdmin"],
+        ["server.js", "geminiService"],
+        ["server.js", "similarity"],
+        ["server.js", "embedding_service.py"],
+      ];
+      const pos = Object.fromEntries(nodes.map((n) => [n.id, n]));
+      const lines = edges.map(([a, b]) => {
+        const s = pos[a]; const t = pos[b];
+        return `<line x1="${s.x + 80}" y1="${s.y + 48}" x2="${t.x + 80}" y2="${t.y}" stroke="#8a7464" />`;
+      }).join("");
+      const boxes = nodes.map((n) => `
+        <g>
+          <rect x="${n.x}" y="${n.y}" width="160" height="48" fill="#201a16" stroke="#8a7464" />
+          <text x="${n.x + 80}" y="${n.y + 29}" text-anchor="middle" fill="#e5e2e1" font-size="12">${n.id}</text>
+        </g>
+      `).join("");
+      return `<svg viewBox="0 0 960 480" xmlns="http://www.w3.org/2000/svg">
+        <text x="40" y="28" fill="#a39b94" font-size="11">Frontend</text>
+        <text x="40" y="238" fill="#a39b94" font-size="11">Backend / Auth</text>
+        <text x="200" y="388" fill="#a39b94" font-size="11">AI / utils</text>
+        ${lines}${boxes}
+      </svg>`;
+    }
+
+    const stage = document.getElementById("stage");
+    const tabDomain = document.getElementById("tab-domain");
+    const tabRuntime = document.getElementById("tab-runtime");
+    function show(view) {
+      stage.innerHTML = view === "domain" ? domainSvg() : runtimeSvg();
+      tabDomain.classList.toggle("active", view === "domain");
+      tabRuntime.classList.toggle("active", view === "runtime");
+    }
+    tabDomain.onclick = () => show("domain");
+    tabRuntime.onclick = () => show("runtime");
+    show("domain");
+  </script>
+</body>
+</html>
