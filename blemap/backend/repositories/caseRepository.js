@@ -1,13 +1,13 @@
 import { supabaseAdmin } from "../../database/supabaseAdmin.js";
- 
-/** Fetch every row from the `cases` table. */
+
 export async function getAllCases() {
   const { data, error } = await supabaseAdmin
     .from("cases")
     .select("*")
-    .order("id", { ascending: true });
- 
+    .not("embedding", "is", null);
+
   if (error) throw error;
+  
   return data;
 }
 
@@ -42,6 +42,7 @@ export async function createCase(fields) {
     .insert({
       topic: fields.topic ?? "Untitled Case",
       summary: fields.summary ?? "",
+      embedding: fields.embedding ?? null,
       permalinks: fields.permalinks ?? [],
       subreddits: fields.subreddits ?? [],
       ai_status: fields.ai_status ?? "user_submitted",

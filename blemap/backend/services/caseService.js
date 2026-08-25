@@ -1,6 +1,4 @@
 import { cosineSimilarity } from "../utils/similarity.js";
-import { getAllPrecases } from "../repositories/precaseRepository.js";
-import { supabaseAdmin } from "../../database/supabaseAdmin.js";
 import {
   getPrecaseById,
   findSimilarCase,
@@ -44,71 +42,67 @@ function parseEmbedding(raw) {
 
 export async function findNearestCase(queryEmbedding) {
   try {
-    const precases = await getAllPrecases();
+    const cases = await getAllCases();
 
-    if (!precases || precases.length === 0) {
-      return { case: null, precase: null, similarity: 0 };
+    if (!cases || cases.length === 0) {
+      return {
+        case: null,
+        precase: null,
+        similarity: 0
+      };
     }
 
-    let bestPrecase = null;
+    let bestCase = null;
     let bestSimilarity = -1;
 
-    for (const precase of precases) {
-        console.log("==========");
-        console.log("Precase ID:", precase.id);
-
-        console.log("Embedding:");
-        console.log(precase.embedding);
-
-        console.log("Type:");
-        console.log(typeof precase.embedding);
-
-        console.log("Is Array:");
-        console.log(Array.isArray(precase.embedding));
-
-      const emb = parseEmbedding(precase.embedding);
-        console.log("Parsed:");
-        console.log(emb);
-
-        console.log("Type:");
-        console.log(typeof emb);
-
-        console.log("Is Array:");
-        console.log(Array.isArray(emb));
+    for (const existingCase of cases) {
+      const emb = parseEmbedding(existingCase.embedding);
 
       if (!emb) continue;
- 
-      const similarity = cosineSimilarity(queryEmbedding, emb);
 
-        console.log("Similarity:", similarity);
+      const similarity = cosineSimilarity(
+        queryEmbedding,
+        emb
+      );
+
+      console.log(
+        `Case ${existingCase.id} | ${existingCase.topic} | Similarity: ${similarity}`
+      );
 
       if (similarity > bestSimilarity) {
-
-        console.log("Best Similarity:", similarity);
-        console.log("Best Precase ID:", precase.id);
-
         bestSimilarity = similarity;
-        bestPrecase = precase;
+        bestCase = existingCase;
       }
     }
 
-    if (!bestPrecase || bestSimilarity < SIMILARITY_THRESHOLD) {
-      return { case: null, precase: null, similarity: bestSimilarity };
+    if (
+      !bestCase ||
+      bestSimilarity < SIMILARITY_THRESHOLD
+    ) {
+      return {
+        case: null,
+        precase: null,
+        similarity: bestSimilarity
+      };
     }
-    
-    const linkedCase = bestPrecase?.case_id
-      ? await getCaseById(bestPrecase.case_id)
-      : null;
-    
+
     return {
-      case: linkedCase,
-      precase: bestPrecase,
-      similarity: bestSimilarity,
+      case: bestCase,
+      precase: null,
+      similarity: bestSimilarity
     };
-  }
-  catch (err) {
-    console.error("Finding the nearest case failed:", err);
-    return { case: null, precase: null, similarity: 0 };
+
+  } catch (err) {
+    console.error(
+      "Finding the nearest case failed:",
+      err
+    );
+
+    return {
+      case: null,
+      precase: null,
+      similarity: 0
+    };
   }
 }
 
@@ -124,15 +118,17 @@ export async function attachToExistingCase(caseId, submissionText) {
     aggregated_at: new Date(),
   });
 }
- 
-/** Create a brand-new case from the user's raw text. */
-export async function createNewCase(rawText) {
+
+export async function createNewCase(rawText, embedding) {
   const topic =
-    rawText.length > 100 ? rawText.substring(0, 100) + "\u2026" : rawText;
- 
+    rawText.length > 100
+      ? rawText.substring(0, 100) + "…"
+      : rawText;
+
   return createCase({
     topic,
     summary: rawText,
+    embedding,
     permalinks: [],
     subreddits: [],
     ai_status: "user_submitted",

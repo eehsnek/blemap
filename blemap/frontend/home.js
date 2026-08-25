@@ -1,25 +1,3 @@
-import { signOut } from "../database/signOut.js";
-import { getCurrentUserProfile } from "../database/getUserProfile.js";
-
-console.log("HOME.JS LOADED");
-
-document.body.insertAdjacentHTML(
-  "beforeend",
-  "<h1>HOME TEST</h1>"
-);
-
-import { supabase } from "./supabase.js";
-
-console.log("SUPABASE CLIENT LOADED");
-
-const {
-  data: { session },
-  error
-} = await supabase.auth.getSession();
-
-console.log("SESSION:", session);
-console.log("SESSION ERROR:", error);
-/*
 import { supabase } from './supabase.js';
 import { signOut } from '../database/signOut.js'
 import { getCurrentUserProfile } from '../database/getUserProfile.js'
@@ -60,13 +38,36 @@ document.getElementById('signout-btn').addEventListener('click', async () => {
 });
 
 async function loadPreCases() {
-  const response = await fetch("http://localhost:4000/api/test");
-  const json = await response.json();
+  try {
+    const response = await fetch(
+      "http://localhost:4000/api/precases"
+    );
 
-  // ✅ json.inserted is the array
-  document.getElementById("reddit-feed").innerHTML = json.inserted
-    .map(post => `<li><a href="https://reddit.com${post.permalink}" target="_blank">${post.title}</a></li>`)
-    .join("");
+    if (!response.ok) {
+      throw new Error(`Failed to load precases: ${response.status}`);
+    }
+
+    const precases = await response.json();
+
+    console.log("PRECASES:", precases);
+
+    document.getElementById("reddit-feed").innerHTML =
+      precases
+        .map(post => `
+          <li>
+            <a
+              href="https://reddit.com${post.permalink}"
+              target="_blank"
+            >
+              ${post.title}
+            </a>
+          </li>
+        `)
+        .join("");
+
+  } catch (err) {
+    console.error("Load precases error:", err);
+  }
 }
 
 async function toggleClaim(button, caseId) {
@@ -159,125 +160,204 @@ async function addSolve(caseId) {
 }
 
 async function loadCases() {
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    console.error("No authenticated user");
-    return;
-  }
-
-  const response = await fetch(`http://localhost:4000/api/cases?user_id=${user.id}`);
-  const cases = await response.json();
-
   const container = document.getElementById("cases");
 
-  if (!cases || cases.length === 0) {
-    container.innerHTML = `<p>No cases available yet.</p>`;
+  if (!container) {
+    console.error("Cases container not found.");
     return;
   }
 
-  // Clear container before re-rendering
-  container.innerHTML = "";
+  try {
+    // 1. Get authenticated user
+    const {
+      data: { user },
+      error: userError
+    } = await supabase.auth.getUser();
 
-  cases.forEach(c => {
-    // Create card element
-    const card = document.createElement("div");
-    card.className = `
-      rounded p-4 transition text-white
-      ${c.lifecycle_state === "green"
-        ? "bg-[#123832] border border-[#43e2d2]/50"
-        : c.lifecycle_state === "orange"
-          ? "bg-[#4a2f1f] border border-[#ffb779]/50"
-          : "bg-[#201a16] border border-[#534438]/40"}
-    `;
+    if (userError) {
+      throw userError;
+    }
 
-    // Render card
-    card.innerHTML = `
-      <h2 class="text-xl font-bold">${c.topic}</h2>
-      <p class="text-[#e5e2e1]/75">${c.summary}</p>
-      <p class="text-sm text-[#e5e2e1]/50">Subreddits: ${c.subreddits.join(", ")}</p>
+    if (!user) {
+      console.error("No authenticated user.");
+      container.innerHTML = `<p>Please log in to view cases.</p>`;
+      return;
+    }
 
-      <div class="flex space-x-2 mt-3 action-buttons">
-        <button class="claim bg-[#cd7f32] text-[#13100d] font-semibold px-3 py-1 rounded">
-          ${c.claimed_by ? "Unclaim" : "Claim"}
-        </button>
-        <button class="pain bg-[#2a2a2a] text-[#ffb779] px-3 py-1 rounded">
-          ${c.user_pained ? "Unpain" : "Pain"}
-        </button>
-        <button class="solve bg-[#43e2d2] text-[#13100d] font-semibold px-3 py-1 rounded">Solve</button>
-      </div>
-    `;
+    // 2. Fetch cases from backend
+    const response = await fetch(
+      `http://localhost:4000/api/cases?user_id=${encodeURIComponent(user.id)}`
+    );
 
-    // Card click → go to details
-    card.addEventListener("click", () => {
-      window.location.href = `http://localhost:3000/frontend/caseDetail?id=${c.id}`;
-    });
+    if (!response.ok) {
+      throw new Error(`Failed to load cases: ${response.status}`);
+    }
 
-    // Prevent the action-buttons area from triggering card redirect
-    card.querySelector(".action-buttons").addEventListener("click", e => {
-      e.stopPropagation(); // ✅ stops the card click
-    });
+    const cases = await response.json();
 
-    card.querySelector(".claim").addEventListener("click", async function (e) {
-      e.stopPropagation();
+    console.log("Cases loaded:", cases);
 
-      const { data: { user } } = await supabase.auth.getUser();
+    // 3. Handle empty catalogue
+    if (!Array.isArray(cases) || cases.length === 0) {
+      container.innerHTML = `<p>No cases available yet.</p>`;
+      return;
+    }
 
-      if (!user) {
-        alert("You must be logged in.");
-        return;
-      }
+    // 4. Clear existing cards
+    container.innerHTML = "";
 
-      try {
-        const res = await fetch(
-          `http://localhost:4000/api/cases/${c.id}/toggle-claim`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              user_id: user.id
-            })
+    // 5. Render each case
+    cases.forEach((c) => {
+      const card = document.createElement("div");
+
+      const lifecycleClass =
+        c.lifecycle_state === "green"
+          ? "bg-[#123832] border border-[#43e2d2]/50"
+          : c.lifecycle_state === "orange"
+            ? "bg-[#4a2f1f] border border-[#ffb779]/50"
+            : "bg-[#201a16] border border-[#534438]/40";
+
+      card.className = `
+        rounded p-4 transition text-white
+        ${lifecycleClass}
+      `;
+
+      card.innerHTML = `
+        <h2 class="text-xl font-bold">
+          ${c.topic ?? "Untitled Case"}
+        </h2>
+
+        <p class="text-[#e5e2e1]/75">
+          ${c.summary ?? ""}
+        </p>
+
+        <p class="text-sm text-[#e5e2e1]/50">
+          Subreddits:
+          ${(c.subreddits ?? []).join(", ") || "None"}
+        </p>
+
+        <div class="flex space-x-2 mt-3 action-buttons">
+
+          <button
+            class="claim bg-[#cd7f32] text-[#13100d] font-semibold px-3 py-1 rounded"
+          >
+            ${c.claimed_by ? "Unclaim" : "Claim"}
+          </button>
+
+          <button
+            class="pain bg-[#2a2a2a] text-[#ffb779] px-3 py-1 rounded"
+          >
+            ${c.user_pained ? "Unpain" : "Pain"}
+          </button>
+
+          <button
+            class="solve bg-[#43e2d2] text-[#13100d] font-semibold px-3 py-1 rounded"
+          >
+            Solve
+          </button>
+
+        </div>
+      `;
+
+      // --------------------------------
+      // CARD → CASE DETAILS
+      // --------------------------------
+
+      card.addEventListener("click", () => {
+        window.location.href =
+          `/frontend/caseDetail.html?id=${c.id}`;
+      });
+
+      // --------------------------------
+      // ACTION BUTTONS
+      // --------------------------------
+
+      const actionButtons =
+        card.querySelector(".action-buttons");
+
+      actionButtons.addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+
+      // --------------------------------
+      // CLAIM
+      // --------------------------------
+
+      const claimButton =
+        card.querySelector(".claim");
+
+      claimButton.addEventListener("click", async () => {
+        try {
+          const response = await fetch(
+            `http://localhost:4000/api/cases/${c.id}/toggle-claim`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                user_id: user.id
+              })
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(
+              `Claim request failed: ${response.status}`
+            );
           }
-        );
 
-        if (!res.ok) {
-          throw new Error(`Failed: ${res.status}`);
+          const result = await response.json();
+
+          console.log("Toggle claim result:", result);
+
+          // Reload catalogue so lifecycle state,
+          // claimed_by, and button text stay synchronized.
+          await loadCases();
+
+        } catch (err) {
+          console.error("Claim toggle error:", err);
         }
+      });
 
-        const data = await res.json();
+      // --------------------------------
+      // PAIN
+      // --------------------------------
 
-        console.log("Toggle claim result:", data);
+      const painButton =
+        card.querySelector(".pain");
 
-        // ✅ Toggle button text
-        this.textContent =
-          data.state === "claimed"
-            ? "Unclaim"
-            : "Claim";
+      painButton.addEventListener("click", () => {
+        togglePain(painButton, c.id);
+      });
 
-        // optional color toggle
-        this.className =
-          data.state === "claimed"
-            ? "claim bg-[#2a2a2a] text-[#ffb779] px-3 py-1 rounded"
-            : "claim bg-[#cd7f32] text-[#13100d] font-semibold px-3 py-1 rounded";
+      // --------------------------------
+      // SOLVE
+      // --------------------------------
 
-        // refresh case feed if needed
-        loadCases();
+      const solveButton =
+        card.querySelector(".solve");
 
-      } catch (err) {
-        console.error("Claim toggle error:", err);
-      }
+      solveButton.addEventListener("click", () => {
+        addSolve(c.id);
+      });
+
+      // --------------------------------
+      // APPEND
+      // --------------------------------
+
+      container.appendChild(card);
     });
 
-    card.querySelector(".pain").addEventListener("click", function () {
-      togglePain(this, c.id);
-    });
-    card.querySelector(".solve").addEventListener("click", () => addSolve(c.id));
+  } catch (err) {
+    console.error("Load cases error:", err);
 
-    // Append card to container
-    container.appendChild(card);
-  });
+    container.innerHTML = `
+      <p class="text-[#ffb779]">
+        Unable to load cases.
+      </p>
+    `;
+  }
 }
 
 async function initHome() {
@@ -286,4 +366,3 @@ async function initHome() {
 }
 
 initHome();
-*/

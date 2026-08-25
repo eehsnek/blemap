@@ -7,7 +7,7 @@ button.addEventListener("click", submitCase);
 async function submitCase() {
   const text = input.value.trim();
 
-  // 1. Validate input early
+  // 1. Validate input
   if (!text) {
     output.innerHTML = `
       <p class="text-red-500 font-semibold">
@@ -17,15 +17,24 @@ async function submitCase() {
     return;
   }
 
-  // 2. UI loading state
+  // 2. Processing state
   button.disabled = true;
-  button.innerText = "Submitting...";
+  button.innerText = "Processing...";
 
   output.innerHTML = `
-    <p class="text-gray-500">Processing case...</p>
+    <div class="p-4">
+      <p class="font-semibold">
+        Analyzing your submission...
+      </p>
+
+      <p class="text-sm text-gray-500 mt-1">
+        Searching for related cases.
+      </p>
+    </div>
   `;
 
   try {
+    // 3. Submit to backend
     const res = await fetch(
       "http://localhost:4000/api/submit",
       {
@@ -43,26 +52,87 @@ async function submitCase() {
 
     const data = await res.json();
 
-    console.log("Response:", data);
+    console.log("Submission response:", data);
 
-    // 3. Render result clearly
+    // 4. Determine actual match result
+    const result = data.case;
+
+    if (!result) {
+      throw new Error("Submission returned no result.");
+    }
+
+    // 5. Existing case
+    if (result.matched === true && result.case) {
+      const matchedCase = result.case;
+
+      output.innerHTML = `
+        <div class="bg-white shadow rounded p-5">
+
+          <p class="text-sm font-semibold text-[#43e2d2]">
+            EXISTING CASE FOUND
+          </p>
+
+          <h2 class="font-bold text-xl mt-2">
+            ${matchedCase.topic ?? "Related case"}
+          </h2>
+
+          <p class="text-gray-700 mt-2">
+            ${matchedCase.summary ?? ""}
+          </p>
+
+          <button
+            id="view-case"
+            class="mt-4 bg-[#43e2d2] text-[#13100d]
+                   font-semibold px-4 py-2 rounded"
+          >
+            View Case
+          </button>
+
+        </div>
+      `;
+
+      document
+        .getElementById("view-case")
+        .addEventListener("click", () => {
+          window.location.href =
+            `/frontend/caseDetail.html?id=${matchedCase.id}`;
+        });
+
+      return;
+    }
+
+    // 6. No existing case
     output.innerHTML = `
-      <div class="bg-white shadow rounded p-4">
-        <h2 class="font-bold text-lg mb-2">
-          ${data.matched ? "Matched Case" : "New Case Created"}
+      <div class="bg-white shadow rounded p-5">
+
+        <p class="text-sm font-semibold text-[#ffb779]">
+          NEW PROBLEM IDENTIFIED
+        </p>
+
+        <h2 class="font-bold text-xl mt-2">
+          Your submission does not match an existing case.
         </h2>
 
-        <p class="text-gray-700">
-          ${data.case?.summary || "No summary available"}
+        <p class="text-gray-700 mt-2">
+          BleMap has identified this as a new problem
+          that can enter the case pipeline.
         </p>
 
-        <p class="text-sm text-gray-500 mt-2">
-          Status: ${data.case?.lifecycle_state || "N/A"}
-        </p>
+        ${
+          result.similarity !== undefined
+            ? `
+              <p class="text-sm text-gray-500 mt-3">
+                Similarity score:
+                ${Number(result.similarity).toFixed(3)}
+              </p>
+            `
+            : ""
+        }
+
       </div>
     `;
 
-    // 4. Reset input
+    // 7. Clear input
     input.value = "";
 
   } catch (err) {
@@ -70,11 +140,15 @@ async function submitCase() {
 
     output.innerHTML = `
       <p class="text-red-500 font-semibold">
-        Failed to submit case. Try again.
+        Failed to process submission.
+      </p>
+
+      <p class="text-sm text-gray-500 mt-1">
+        Please try again.
       </p>
     `;
+
   } finally {
-    // 5. Always restore button state
     button.disabled = false;
     button.innerText = "Submit";
   }

@@ -13,5 +13,4 @@ export async function getAllPrecases() {
     if (error) throw error;
 
     return data;
-
 }

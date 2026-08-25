@@ -14,8 +14,20 @@ export async function processSubmission(description, embedding) {
     similarity
   } = await findNearestCase(embedding);
 
-  if (similarity >= SIMILARITY_THRESHOLD) {
+  console.log("Submission matching result:", {
+    matchedCase,
+    precase,
+    similarity
+  });
 
+  // Only attach to an existing case if:
+  // 1. A case was actually found
+  // 2. Similarity passes the threshold
+  if (
+    matchedCase &&
+    similarity != null &&
+    similarity >= SIMILARITY_THRESHOLD
+  ) {
     const updatedCase = await attachToExistingCase(
       matchedCase.id,
       description
@@ -29,7 +41,10 @@ export async function processSubmission(description, embedding) {
     };
   }
 
-  const newCase = await createNewCase(description);
+  const newCase = await createNewCase(
+    description,
+    embedding
+  );
 
   return {
     matched: false,
@@ -38,41 +53,3 @@ export async function processSubmission(description, embedding) {
     similarity
   };
 }
-
-export async function submitCase(text) {
-  const embedding = await generateEmbedding(text);
-
-  return await processSubmission(
-    text,
-    embedding
-  );
-}
-
-// This is for testing purposes only
-/*
-export async function processSubmission(description, embedding) {
-    const {
-        case: matchedCase,
-        precase,
-        similarity
-    } = await findNearestCase(embedding);
-
-    if (similarity >= SIMILARITY_THRESHOLD) {
-
-    console.log("Decision: ATTACH");
-
-        return {
-            decision: "attach",
-            similarity,
-            precase
-        };
-    }
-
-    console.log("Decision: CREATE");
-
-    return {
-        decision: "create",
-        similarity
-    };
-}
-*/
