@@ -10,5 +10,10 @@ export async function generateEmbedding(text) {
     }
  
     const { embedding } = await response.json();
+
+    if (!embedding || !Array.isArray(embedding)) {
+        throw new Error("Invalid embedding returned");
+    }
+    
     return embedding;
 }

@@ -3,7 +3,7 @@ import { createSubmission } from "../repositories/submissionRepository.js";
 try {
 
     const submission = await createSubmission(
-        "Docker Compose stopped working after updating."
+        "Brenn Michelle Merin goes to Ateneo de Zamboanga"
     );
 
     console.log(submission);

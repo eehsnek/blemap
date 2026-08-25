@@ -39,6 +39,15 @@ export async function processSubmission(description, embedding) {
   };
 }
 
+export async function submitCase(text) {
+  const embedding = await generateEmbedding(text);
+
+  return await processSubmission(
+    text,
+    embedding
+  );
+}
+
 // This is for testing purposes only
 /*
 export async function processSubmission(description, embedding) {

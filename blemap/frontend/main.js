@@ -1,6 +1,6 @@
 import { signUp } from '../database/signUp.js'
 import { signIn } from '../database/signIn.js'
-import { supabase } from '../database/supabase.js'
+import { supabase } from './supabase.js';
 
 function showMessage(msg, type = 'info') {
   const box = document.getElementById('message-box')

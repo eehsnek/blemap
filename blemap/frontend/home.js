@@ -1,23 +1,51 @@
-import { supabase } from '../database/supabase.js'
+import { signOut } from "../database/signOut.js";
+import { getCurrentUserProfile } from "../database/getUserProfile.js";
+
+console.log("HOME.JS LOADED");
+
+document.body.insertAdjacentHTML(
+  "beforeend",
+  "<h1>HOME TEST</h1>"
+);
+
+import { supabase } from "./supabase.js";
+
+console.log("SUPABASE CLIENT LOADED");
+
+const {
+  data: { session },
+  error
+} = await supabase.auth.getSession();
+
+console.log("SESSION:", session);
+console.log("SESSION ERROR:", error);
+/*
+import { supabase } from './supabase.js';
 import { signOut } from '../database/signOut.js'
 import { getCurrentUserProfile } from '../database/getUserProfile.js'
 
 let hasLoaded = false;
 
 async function showAuthStatus() {
-  const { data: { user } } = await supabase.auth.getUser()
-  const statusBox = document.getElementById('auth-status')
+  const {
+    data: { session },
+    error
+  } = await supabase.auth.getSession();
 
-  if (user) {
-    // ✅ Just show the email
-    statusBox.textContent = `Logged in as ${user.email}`
+  console.log("HOME SESSION:", session);
+  console.log("HOME SESSION ERROR:", error);
+
+  const statusBox = document.getElementById("auth-status");
+
+  if (session) {
+    statusBox.textContent = `Logged in as ${session.user.email}`;
   } else {
-    statusBox.textContent = 'Not logged in'
-    window.location.href = "/frontend/index.html" // bounce back
+    statusBox.textContent = "Not logged in";
+    console.log("NO SESSION — staying on home.html");
   }
 }
 
-showAuthStatus()
+showAuthStatus();
 
 // Sign Out
 document.getElementById('signout-btn').addEventListener('click', async () => {
@@ -258,3 +286,4 @@ async function initHome() {
 }
 
 initHome();
+*/
