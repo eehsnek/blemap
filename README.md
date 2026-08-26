@@ -192,7 +192,7 @@ Copy `.env.example` to `.env`:
 4. **Vercel:** set `CRON_SECRET`, `GEMINI_API_KEY`, and Supabase keys. Cron runs every 6h (`vercel.json`). Run [`database/migrations/004_precase_automation.sql`](database/migrations/004_precase_automation.sql) in Supabase for precase status + scrape logs.
 5. Check last run: `GET /api/ingestion/status`
 6. Run migration [`database/migrations/005_case_events.sql`](database/migrations/005_case_events.sql) for activity audit + Supabase Realtime
-7. Admin moderation: run [`database/migrations/009_admin_role.sql`](database/migrations/009_admin_role.sql), then promote one user in SQL (see migration comments). Admin UI at `#/admin`. For local demos, open `/steward` and use **Demo Steward login** (provisions `steward.demo@blemap.local`; disabled in production or when `BLEMAP_DEMO_STEWARD=0`).
+7. Admin moderation: run [`database/migrations/009_admin_role.sql`](database/migrations/009_admin_role.sql), then promote one user in SQL (see migration comments). Sign in at `/steward`; Admin UI at `#/admin`.
 8. Health: `GET /health` and `GET /health?deep=1` (Gemini ping). See also [`docs/RUNTIME.md`](docs/RUNTIME.md).
 
 ### Live updates & metrics API

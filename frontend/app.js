@@ -14,6 +14,11 @@ import {
 import * as authView from "./views/authView.js";
 import * as stewardAuthView from "./views/stewardAuthView.js";
 import { startRealtime, stopRealtime } from "./lib/realtime.js";
+import {
+  captureRecoveryFromUrl,
+  isPasswordRecoveryPending,
+  clearPasswordRecovery,
+} from "./lib/authSafety.js";
 
 const bootScreen = document.getElementById("boot-screen");
 const authScreen = document.getElementById("auth-screen");
@@ -65,6 +70,8 @@ function showAuthOnly() {
     viewCleanup?.();
     viewCleanup = authView.mount(authScreen);
     authMounted = true;
+  } else {
+    authView.syncAuthPanel(parseRoute().name);
   }
 }
 
@@ -140,6 +147,12 @@ function setMainLoading(loading) {
 async function renderRoute(route) {
   if (route.name === "login" || route.name === "register") {
     navigate("home");
+    return;
+  }
+
+  if (route.name === "forgot-password" || route.name === "reset-password") {
+    showAuthOnly();
+    authView.syncAuthPanel(route.name);
     return;
   }
 
@@ -243,6 +256,11 @@ async function enterAuthenticatedApp({
   forceHome = false,
   forceAdmin = false,
 } = {}) {
+  if (isPasswordRecoveryPending()) {
+    showAuthOnly();
+    authView.syncAuthPanel("reset-password");
+    return;
+  }
   isAuthenticated = true;
   showAppOnly();
   await updateAuthStatus();
@@ -314,18 +332,25 @@ async function handleRouteChange(route) {
     return;
   }
 
-  if (route.name === "login" || route.name === "register") {
+  if (
+    route.name === "login" ||
+    route.name === "register" ||
+    route.name === "forgot-password" ||
+    route.name === "reset-password"
+  ) {
+    const recovery = isPasswordRecoveryPending() || route.name === "reset-password";
+    if (recovery) {
+      showAuthOnly();
+      authView.syncAuthPanel("reset-password");
+      return;
+    }
     const session = await requireSession();
-    if (session) {
+    if (session && route.name !== "forgot-password") {
       await enterAuthenticatedApp({ forceHome: true });
       return;
     }
     showAuthOnly();
-    if (route.name === "register") {
-      document.getElementById("tab-register")?.click();
-    } else {
-      document.getElementById("tab-login")?.click();
-    }
+    authView.syncAuthPanel(route.name);
     return;
   }
 
@@ -352,39 +377,26 @@ async function handleRouteChange(route) {
 }
 
 async function init() {
+  captureRecoveryFromUrl();
   onRouteChange(handleRouteChange);
 
   const initial = parseRoute();
   const openSteward = initial.name === "steward-login";
+  const recovery = isPasswordRecoveryPending() || initial.name === "reset-password";
 
-  if (window.location.hash && !openSteward && !isPublicAuthRoute(initial.name)) {
-    pendingReturnRoute = initial;
-  }
-
-  if (openSteward) {
-    showStewardAuthOnly();
-  } else {
-    clearRoute();
-    showAuthOnly();
-  }
-
-  const session = await requireSession();
-
-  if (session) {
-    if (openSteward) {
-      await updateAuthStatus();
-      if (isAdmin) {
-        await enterAuthenticatedApp({ forceAdmin: true });
-      } else {
-        showStewardAuthOnly();
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === "PASSWORD_RECOVERY") {
+      try {
+        sessionStorage.setItem("blemap-password-recovery", "1");
+      } catch {
+        /* ignore */
       }
-    } else {
-      await enterAuthenticatedApp({ forceHome: !window.location.hash });
+      showAuthOnly();
+      authView.syncAuthPanel("reset-password");
+      return;
     }
-  }
-
-  supabase.auth.onAuthStateChange((_event, session) => {
     if (session) {
+      if (isPasswordRecoveryPending()) return;
       if (!isAuthenticated) {
         const stewardIntent =
           parseRoute().name === "steward-login" ||
@@ -403,11 +415,73 @@ async function init() {
     }
   });
 
+  if (recovery) {
+    showAuthOnly();
+    authView.syncAuthPanel("reset-password");
+    if (window.location.hash.includes("access_token")) {
+      history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}#/reset-password`
+      );
+    }
+  } else if (openSteward) {
+    if (window.location.hash && !isPublicAuthRoute(initial.name)) {
+      pendingReturnRoute = initial;
+    }
+    showStewardAuthOnly();
+  } else {
+    if (window.location.hash && !isPublicAuthRoute(initial.name)) {
+      pendingReturnRoute = initial;
+    }
+    if (!window.location.hash.includes("access_token")) {
+      clearRoute();
+    }
+    showAuthOnly();
+  }
+
+  if (recovery) {
+    window.addEventListener("blemap:authenticated", () => {
+      clearPasswordRecovery();
+      void enterAuthenticatedApp({ forceHome: true });
+    });
+    window.addEventListener("blemap:steward-authenticated", () => {
+      clearPasswordRecovery();
+      void enterAuthenticatedApp({ forceAdmin: true });
+    });
+    document.getElementById("signout-btn")?.addEventListener("click", async () => {
+      const wasAdminDesk = parseRoute().name === "admin";
+      await supabase.auth.signOut();
+      exitToAuth({ steward: wasAdminDesk });
+    });
+    return;
+  }
+
+  const session = await requireSession();
+
+  if (isPasswordRecoveryPending()) {
+    showAuthOnly();
+    authView.syncAuthPanel("reset-password");
+  } else if (session) {
+    if (openSteward) {
+      await updateAuthStatus();
+      if (isAdmin) {
+        await enterAuthenticatedApp({ forceAdmin: true });
+      } else {
+        showStewardAuthOnly();
+      }
+    } else {
+      await enterAuthenticatedApp({ forceHome: !window.location.hash });
+    }
+  }
+
   window.addEventListener("blemap:authenticated", () => {
+    clearPasswordRecovery();
     void enterAuthenticatedApp({ forceHome: true });
   });
 
   window.addEventListener("blemap:steward-authenticated", () => {
+    clearPasswordRecovery();
     void enterAuthenticatedApp({ forceAdmin: true });
   });
 

@@ -8,13 +8,11 @@ npm install && npm run dev
 
 For demos/prod durability: set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` so `/health` shows `store: "supabase"`. Memory store is for unit tests / ephemeral local only — cases wipe on restart.
 
-### Archive Steward (admin) demo login
+### Archive Steward (admin) login
 
 1. Open **http://localhost:4000/steward**
-2. Click **Demo Steward login** (local only — provisions `steward.demo@blemap.local` as admin)
+2. Sign in with an admin account (promote via SQL after `009_admin_role.sql`)
 3. You land on the Archive Steward desk
-
-Or sign in with a real admin account. Promote via SQL after `009_admin_role.sql`.
 
 Open http://localhost:4000
 

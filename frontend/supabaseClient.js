@@ -5,6 +5,17 @@ import {
   SUPABASE_CONFIGURED,
 } from "./config.js";
 
+if (typeof window !== "undefined") {
+  const blob = `${window.location.hash}\n${window.location.search}`;
+  if (/type=recovery/i.test(blob)) {
+    try {
+      sessionStorage.setItem("blemap-password-recovery", "1");
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 const authStub = {
   async getUser() {
     return { data: { user: null }, error: null };
@@ -32,6 +43,21 @@ const authStub = {
   },
   async signOut() {
     return { error: null };
+  },
+  async setSession() {
+    return {
+      data: { session: null },
+      error: { message: "Supabase is not configured." },
+    };
+  },
+  async updateUser() {
+    return { data: { user: null }, error: { message: "Supabase is not configured." } };
+  },
+  async resetPasswordForEmail() {
+    return { data: {}, error: { message: "Supabase is not configured." } };
+  },
+  async verifyOtp() {
+    return { data: { session: null }, error: { message: "Supabase is not configured." } };
   },
   onAuthStateChange() {
     return { data: { subscription: { unsubscribe() {} } } };

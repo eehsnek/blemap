@@ -1,26 +1,22 @@
 import { supabase } from "../supabaseClient.js";
 import { apiFetch } from "../api.js";
 import { navigate } from "../router.js";
-
-function demoStewardEnabled() {
-  return Boolean(window.__BLEMAP_CONFIG?.demoSteward);
-}
-
-function demoStewardEmail() {
-  return (
-    window.__BLEMAP_CONFIG?.demoStewardEmail || "steward.demo@blemap.local"
-  );
-}
+import {
+  passwordRow,
+  wirePasswordToggles,
+  wireCapsLock,
+  loginWithSafety,
+  requestPasswordReset,
+  applySession,
+  resendConfirmation,
+} from "../lib/authSafety.js";
 
 /**
  * Dedicated Archive Steward login (no register).
  * After password auth, requires profiles.roles.name === admin (or allowlist).
- * Local/demo: one-click Demo Steward provisions + signs in.
  */
 export function mount(container) {
   if (!container) return () => {};
-
-  const showDemo = demoStewardEnabled();
 
   container.innerHTML = `
     <div class="auth-page steward-auth-page">
@@ -33,22 +29,7 @@ export function mount(container) {
           <span class="steward-auth-seal" aria-hidden="true">Steward access</span>
         </div>
         <div class="auth-panel steward-auth-panel">
-          ${
-            showDemo
-              ? `<button type="button" id="steward-demo-btn" class="auth-btn steward-demo-btn">
-                   Demo Steward login
-                 </button>
-                 <p class="steward-demo-hint">Local only · ${escapeText(demoStewardEmail())}</p>
-                 <div class="steward-auth-divider"><span>or use your steward account</span></div>`
-              : ""
-          }
-          <div id="steward-auth-forms">
-            <label class="steward-auth-label" for="steward-email">Steward email</label>
-            <input id="steward-email" type="email" autocomplete="username" placeholder="steward@…" class="auth-field" value="${showDemo ? escapeAttr(demoStewardEmail()) : ""}" />
-            <label class="steward-auth-label" for="steward-password">Password</label>
-            <input id="steward-password" type="password" autocomplete="current-password" placeholder="Password" class="auth-field" />
-            <button type="button" id="steward-signin-btn" class="auth-btn steward-auth-btn">Enter Steward desk</button>
-          </div>
+          <div id="steward-auth-forms"></div>
           <div id="steward-message-box" class="auth-msg"></div>
           <p class="steward-auth-foot">
             <button type="button" id="steward-to-community" class="steward-auth-link">← Community sign-in</button>
@@ -58,6 +39,7 @@ export function mount(container) {
     </div>
   `;
 
+  const forms = container.querySelector("#steward-auth-forms");
   const msg = (text, isError = false) => {
     const box = container.querySelector("#steward-message-box");
     if (!box) return;
@@ -81,106 +63,128 @@ export function mount(container) {
     );
   }
 
-  const trySignIn = async () => {
-    const email = container.querySelector("#steward-email")?.value.trim();
-    const password = container.querySelector("#steward-password")?.value;
-    const btn = container.querySelector("#steward-signin-btn");
-    if (!email || !password) return msg("Enter steward email and password.", true);
+  function showStewardLogin() {
+    forms.innerHTML = `
+      <label class="steward-auth-label" for="steward-email">Steward email</label>
+      <input id="steward-email" type="email" autocomplete="username" placeholder="steward@…" class="auth-field" />
+      <label class="steward-auth-label" for="steward-password">Password</label>
+      ${passwordRow("steward-password", { autocomplete: "current-password", placeholder: "Password" })}
+      <p id="steward-caps-hint" class="auth-caps-hint" hidden>Caps Lock is on</p>
+      <div class="auth-toolbar">
+        <button type="button" id="steward-forgot-btn" class="auth-link-btn">Forgot password?</button>
+      </div>
+      <button type="button" id="steward-signin-btn" class="auth-btn steward-auth-btn">Enter Steward desk</button>
+    `;
+    wirePasswordToggles(forms);
+    wireCapsLock(forms.querySelector("#steward-password"), forms.querySelector("#steward-caps-hint"));
 
-    btn.disabled = true;
-    btn.textContent = "Verifying steward…";
-    msg("");
+    const trySignIn = async () => {
+      const email = container.querySelector("#steward-email")?.value.trim();
+      const password = container.querySelector("#steward-password")?.value;
+      const btn = container.querySelector("#steward-signin-btn");
+      if (!email || !password) return msg("Enter steward email and password.", true);
 
-    let data;
-    let error;
-    try {
-      ({ data, error } = await supabase.auth.signInWithPassword({ email, password }));
-    } catch (err) {
-      btn.disabled = false;
-      btn.textContent = "Enter Steward desk";
-      const m = err?.message || String(err);
-      if (/load failed|failed to fetch|network/i.test(m)) {
-        return msg(
-          "Cannot reach Supabase. Use http://localhost:4000 and restart the server.",
-          true
-        );
-      }
-      return msg(m, true);
-    }
+      btn.disabled = true;
+      btn.textContent = "Verifying steward…";
+      msg("");
 
-    if (error) {
-      btn.disabled = false;
-      btn.textContent = "Enter Steward desk";
-      let m = error.message;
-      if (m.toLowerCase().includes("email not confirmed")) {
-        m = "Confirm your email first, or disable confirm-email in Supabase for dev.";
-      }
-      return msg(m, true);
-    }
-
-    if (!data.session) {
-      btn.disabled = false;
-      btn.textContent = "Enter Steward desk";
-      return msg("Sign-in failed — no session.", true);
-    }
-
-    try {
-      await finishStewardSession(email);
-    } catch (err) {
-      btn.disabled = false;
-      btn.textContent = "Enter Steward desk";
-      return msg(err.message || "Could not verify steward role.", true);
-    }
-  };
-
-  const tryDemoLogin = async () => {
-    const btn = container.querySelector("#steward-demo-btn");
-    const signBtn = container.querySelector("#steward-signin-btn");
-    if (!btn) return;
-
-    btn.disabled = true;
-    if (signBtn) signBtn.disabled = true;
-    btn.textContent = "Provisioning demo steward…";
-    msg("");
-
-    try {
-      const res = await fetch("/api/dev/demo-steward", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(body.error || `Demo steward failed (${res.status})`);
+      let result;
+      try {
+        result = await loginWithSafety(email, password);
+      } catch {
+        btn.disabled = false;
+        btn.textContent = "Enter Steward desk";
+        return msg("Cannot reach BleMap. Use http://localhost:4000 and restart the server.", true);
       }
 
-      const emailEl = container.querySelector("#steward-email");
-      const passEl = container.querySelector("#steward-password");
-      if (emailEl) emailEl.value = body.email || "";
-      if (passEl) passEl.value = body.password || "";
+      if (!result.ok) {
+        btn.disabled = false;
+        btn.textContent = "Enter Steward desk";
+        msg(result.data.error || "Invalid email or password.", true);
+        if (result.data.code === "unconfirmed") {
+          const box = container.querySelector("#steward-message-box");
+          const resend = document.createElement("button");
+          resend.type = "button";
+          resend.className = "auth-link-btn";
+          resend.textContent = "Resend confirmation email";
+          resend.addEventListener("click", async () => {
+            const r = await resendConfirmation(email);
+            msg(r.data.message || r.data.error || "If that email needs confirmation, we sent a new message.", !r.ok);
+          });
+          box?.appendChild(document.createElement("br"));
+          box?.appendChild(resend);
+        }
+        return;
+      }
 
-      btn.textContent = "Signing in…";
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: body.email,
-        password: body.password,
-      });
-      if (error) throw error;
-      if (!data.session) throw new Error("Demo sign-in produced no session");
+      const applied = await applySession(supabase, result.data);
+      if (applied.error) {
+        btn.disabled = false;
+        btn.textContent = "Enter Steward desk";
+        return msg(applied.error, true);
+      }
 
-      await finishStewardSession(body.email);
-    } catch (err) {
-      msg(err.message || "Demo steward login failed", true);
+      try {
+        await finishStewardSession(email);
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Enter Steward desk";
+        return msg(err.message || "Could not verify steward role.", true);
+      }
+    };
+
+    container.querySelector("#steward-signin-btn")?.addEventListener("click", trySignIn);
+    container.querySelector("#steward-password")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") trySignIn();
+    });
+    container.querySelector("#steward-forgot-btn")?.addEventListener("click", showStewardForgot);
+  }
+
+  function showStewardForgot() {
+    forms.innerHTML = `
+      <h2 class="auth-subhead">Reset steward password</h2>
+      <p class="auth-hint">We send instructions only if this email is registered. The response is the same either way.</p>
+      <label class="steward-auth-label" for="steward-forgot-email">Steward email</label>
+      <input id="steward-forgot-email" type="email" autocomplete="username" placeholder="steward@…" class="auth-field" />
+      <button type="button" id="steward-forgot-send" class="auth-btn steward-auth-btn">Send reset instructions</button>
+      <div id="steward-dev-box" class="auth-dev-box" hidden></div>
+      <p class="steward-auth-foot">
+        <button type="button" id="steward-forgot-back" class="steward-auth-link">← Back to steward sign-in</button>
+      </p>
+    `;
+
+    const send = async () => {
+      const email = container.querySelector("#steward-forgot-email")?.value.trim();
+      const btn = container.querySelector("#steward-forgot-send");
+      if (!email) return msg("Enter steward email.", true);
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+      const result = await requestPasswordReset(email);
       btn.disabled = false;
-      btn.textContent = "Demo Steward login";
-      if (signBtn) signBtn.disabled = false;
-    }
-  };
+      btn.textContent = "Send reset instructions";
+      msg(result.data.message || result.data.error || "If an account exists, we sent reset instructions.", !result.ok);
+      const box = container.querySelector("#steward-dev-box");
+      if (box && result.ok && result.data.dev) {
+        box.hidden = false;
+        const otp = result.data.dev.otp
+          ? `<p><strong>Local reset code:</strong> <code>${result.data.dev.otp}</code></p>`
+          : "";
+        box.innerHTML = `${otp}<p class="auth-hint">Open community sign-in → I have a reset code, or use the code on <a class="auth-inline-link" href="#/reset-password">#/reset-password</a>.</p>`;
+      }
+    };
 
-  container.querySelector("#steward-signin-btn")?.addEventListener("click", trySignIn);
-  container.querySelector("#steward-password")?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") trySignIn();
-  });
-  container.querySelector("#steward-demo-btn")?.addEventListener("click", tryDemoLogin);
+    container.querySelector("#steward-forgot-send")?.addEventListener("click", send);
+    container.querySelector("#steward-forgot-email")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") send();
+    });
+    container.querySelector("#steward-forgot-back")?.addEventListener("click", () => {
+      msg("");
+      showStewardLogin();
+    });
+  }
+
+  showStewardLogin();
+
   container.querySelector("#steward-to-community")?.addEventListener("click", () => {
     navigate("login");
   });
@@ -188,15 +192,4 @@ export function mount(container) {
   return () => {
     container.innerHTML = "";
   };
-}
-
-function escapeText(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-function escapeAttr(s) {
-  return escapeText(s).replace(/"/g, "&quot;");
 }

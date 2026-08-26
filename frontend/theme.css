@@ -161,6 +161,77 @@ body {
   margin-top: 0.5rem;
 }
 
+.auth-subhead {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 650;
+}
+
+.auth-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: -0.15rem 0 0.85rem;
+}
+
+.auth-link-btn {
+  background: none;
+  border: none;
+  color: #43e2d2;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.auth-link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.auth-password-wrap {
+  position: relative;
+}
+
+.auth-password-wrap .auth-field {
+  padding-right: 4.25rem;
+}
+
+.auth-show-pass {
+  position: absolute;
+  right: 0.55rem;
+  top: 0.7rem;
+  background: none;
+  border: none;
+  color: rgba(229, 226, 225, 0.55);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.15rem 0.25rem;
+}
+
+.auth-caps-hint {
+  margin: -0.35rem 0 0.65rem;
+  font-size: 0.75rem;
+  color: var(--ble-accent);
+}
+
+.auth-dev-box {
+  margin-top: 0.85rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px dashed rgba(255, 183, 121, 0.4);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--ble-text);
+}
+
+.auth-dev-box code {
+  font-size: 0.95rem;
+  color: #ffb779;
+}
+
+.auth-inline-link {
+  color: #43e2d2;
+}
+
 #app-shell {
   min-height: 100vh;
   display: flex;
@@ -284,41 +355,6 @@ body {
   background: linear-gradient(135deg, #ffb779, #cd7f32) !important;
   color: #13100d !important;
   font-weight: 700;
-}
-
-.steward-demo-btn {
-  width: 100%;
-  background: #2a221c !important;
-  color: #ffb779 !important;
-  border: 1px solid rgba(255, 183, 121, 0.45) !important;
-  font-weight: 700;
-}
-
-.steward-demo-hint {
-  margin: 0.5rem 0 0;
-  text-align: center;
-  font-size: 0.7rem;
-  color: rgba(229, 226, 225, 0.45);
-  font-family: ui-monospace, monospace;
-}
-
-.steward-auth-divider {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 1.25rem 0;
-  color: rgba(229, 226, 225, 0.4);
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.steward-auth-divider::before,
-.steward-auth-divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: rgba(83, 68, 56, 0.5);
 }
 
 .steward-auth-foot {

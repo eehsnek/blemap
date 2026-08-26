@@ -34,10 +34,6 @@ app.get("/health", async (req, res, next) => {
 app.get("/config.js", (_req, res) => {
   const { url: supabaseUrl, anonKey: supabaseAnonKey, configured } =
     resolvePublicSupabaseConfig();
-  const demoSteward =
-    process.env.NODE_ENV !== "production" &&
-    process.env.VERCEL !== "1" &&
-    process.env.BLEMAP_DEMO_STEWARD !== "0";
 
   res.type("application/javascript").send(
     `window.__BLEMAP_CONFIG = ${JSON.stringify({
@@ -46,10 +42,6 @@ app.get("/config.js", (_req, res) => {
       supabaseAnonKey,
       supabaseConfigured: configured,
       store: getStore().mode,
-      demoSteward,
-      demoStewardEmail: demoSteward
-        ? process.env.BLEMAP_DEMO_STEWARD_EMAIL || "steward.demo@blemap.local"
-        : null,
     })};`
   );
 });
@@ -59,6 +51,12 @@ app.use("/api", apiRouter);
 app.get("/", (_req, res) => res.redirect("/frontend/app.html"));
 app.get("/steward", (_req, res) =>
   res.redirect("/frontend/app.html#/steward-login")
+);
+app.get("/forgot-password", (_req, res) =>
+  res.redirect("/frontend/app.html#/forgot-password")
+);
+app.get("/reset-password", (_req, res) =>
+  res.redirect("/frontend/app.html#/reset-password")
 );
 app.get("/admin", (_req, res) =>
   res.redirect("/frontend/app.html#/steward-login")

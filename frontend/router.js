@@ -10,12 +10,16 @@ const ROUTE_TITLES = {
   case: "Case",
   login: "Sign In",
   register: "Register",
+  "forgot-password": "Forgot Password",
+  "reset-password": "Reset Password",
 };
 
 const PUBLIC_AUTH_ROUTES = new Set([
   "login",
   "register",
   "steward-login",
+  "forgot-password",
+  "reset-password",
 ]);
 
 const COMMUNITY_ROUTES = new Set([
@@ -49,6 +53,8 @@ export function parseRoute() {
     "case",
     "login",
     "register",
+    "forgot-password",
+    "reset-password",
   ];
   if (!valid.includes(name)) {
     return { name: "home", params: {} };

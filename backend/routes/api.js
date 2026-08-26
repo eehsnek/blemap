@@ -6,6 +6,7 @@ import { requireCronOrUser } from "../middleware/cronAuth.js";
 import { isAdminUser } from "../middleware/requireAdmin.js";
 import adminRouter from "./admin.js";
 import devAuthRouter from "./devAuth.js";
+import authSafetyRouter from "./authSafety.js";
 
 const router = Router();
 router.use(optionalAuth);
@@ -14,6 +15,7 @@ if (process.env.NODE_ENV !== "production") {
   router.use("/dev", devAuthRouter);
 }
 
+router.use("/auth", authSafetyRouter);
 router.use("/admin", adminRouter);
 
 router.get("/me", requireAuth, async (req, res, next) => {
