@@ -1,37 +1,21 @@
 #!/usr/bin/env node
 /**
- * Trigger the scrape pipeline locally.
+ * Run the scrape pipeline locally (direct store call — no HTTP auth needed).
  * Usage: npm run scrape
- * Requires server on PORT (default 4000) and CRON_SECRET in .env if set.
  */
 import "dotenv/config";
+import { getStore } from "../backend/store/index.js";
 
-const port = process.env.PORT || 4000;
-const secret = process.env.CRON_SECRET?.trim();
-const base = `http://127.0.0.1:${port}`;
-
-const headers = { "Content-Type": "application/json" };
-if (secret) {
-  headers.Authorization = `Bearer ${secret}`;
-}
-
-const res = await fetch(`${base}/api/scrape/run`, {
-  method: "POST",
-  headers,
-  body: "{}",
-});
-
-const text = await res.text();
-let body;
-try {
-  body = JSON.parse(text);
-} catch {
-  body = text;
-}
-
-if (!res.ok) {
-  console.error("Scrape failed:", res.status, body);
+const store = getStore();
+if (!store.runScrapePipeline) {
+  console.error("Scraper not available for this store");
   process.exit(1);
 }
 
-console.log("Scrape complete:", JSON.stringify(body, null, 2));
+const result = await store.runScrapePipeline();
+if (result?.error) {
+  console.error("Scrape failed:", result.status ?? 503, result.error);
+  process.exit(1);
+}
+
+console.log("Scrape complete:", JSON.stringify(result, null, 2));

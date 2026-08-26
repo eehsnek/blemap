@@ -1,5 +1,5 @@
 import { fetchAllPosts, resolveScrapeSources } from "../scraper/fetchPosts.js";
-import { assertScrapeAiReady } from "./config.js";
+import { assertScrapeAiReadyAsync } from "./config.js";
 import { promoteSignal } from "./promoteSignal.js";
 
 /**
@@ -7,7 +7,7 @@ import { promoteSignal } from "./promoteSignal.js";
  * @param {{ limitPerSource?: number, maxPosts?: number, fetchPosts?: (n: number) => Promise<import('../scraper/types.js').ScrapePost[]> }} [opts]
  */
 export async function runScrapeJob(adapter, opts = {}) {
-  const aiBlock = assertScrapeAiReady();
+  const aiBlock = await assertScrapeAiReadyAsync();
   if (aiBlock) return aiBlock;
 
   const limitPerSource = opts.limitPerSource ?? 4;

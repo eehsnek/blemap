@@ -112,7 +112,10 @@ function createSupabaseStore() {
     async listMatrixCases(userId, filters = {}) {
       const rows = await fetchCasesQuery({ publishedOnly: true, ...filters });
       const enriched = await enrichAll(rows, userId);
-      return applyCaseFilters(enriched, filters);
+      return applyCaseFilters(
+        enriched.filter((c) => !c.flagged),
+        filters
+      );
     },
 
     async listProspectorCases(userId, filters = {}) {
@@ -367,18 +370,34 @@ function createSupabaseStore() {
         return { error: "Only published cases can be claimed", status: 400 };
       }
       if (c.claimed_by === userId) {
-        await supabase
+        const { data: unclaimed, error: unclaimErr } = await supabase
           .from("cases")
           .update({ claimed_by: null, lifecycle_state: "grey" })
-          .eq("id", caseId);
+          .eq("id", caseId)
+          .eq("claimed_by", userId)
+          .select("id")
+          .maybeSingle();
+        if (unclaimErr) throw unclaimErr;
+        if (!unclaimed) {
+          return { error: "Already claimed", status: 409 };
+        }
         await logEvent({ caseId, eventType: "unclaimed", actorId: userId });
         return { state: "unclaimed" };
       }
       if (c.claimed_by) return { error: "Already claimed", status: 409 };
-      await supabase
+
+      // Atomic claim: only succeed if still unclaimed (SR-07).
+      const { data: claimed, error: claimErr } = await supabase
         .from("cases")
         .update({ claimed_by: userId, lifecycle_state: "orange" })
-        .eq("id", caseId);
+        .eq("id", caseId)
+        .is("claimed_by", null)
+        .select("id")
+        .maybeSingle();
+      if (claimErr) throw claimErr;
+      if (!claimed) {
+        return { error: "Already claimed", status: 409 };
+      }
       await logEvent({ caseId, eventType: "claimed", actorId: userId });
       return { state: "claimed" };
     },
@@ -577,6 +596,262 @@ function createSupabaseStore() {
 
     async runScrapePipeline() {
       return runScrapeJob(ingestionAdapter());
+    },
+
+    async adminListModeration(userId = null) {
+      const rows = await fetchCasesQuery({});
+      const enriched = await enrichAll(rows, userId);
+      return enriched.sort(
+        (a, b) =>
+          new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+      );
+    },
+
+    async adminPublish(caseId, actorId, reason = null) {
+      const c = await this.getCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      await supabase
+        .from("cases")
+        .update({
+          status: "published",
+          confirmation_count: Math.max(
+            c.confirmation_count ?? 0,
+            CONFIRMATIONS_REQUIRED
+          ),
+        })
+        .eq("id", caseId);
+      await logEvent({
+        caseId,
+        eventType: "status_changed",
+        actorId,
+        source: "admin",
+        metadata: { to: "published", reason: reason || undefined },
+      });
+      return { case: await this.getCase(caseId, actorId) };
+    },
+
+    async adminHide(caseId, actorId, reason = null) {
+      const c = await this.getCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      await supabase
+        .from("cases")
+        .update({ status: "archived" })
+        .eq("id", caseId);
+      await logEvent({
+        caseId,
+        eventType: "status_changed",
+        actorId,
+        source: "admin",
+        metadata: { to: "archived", reason: reason || undefined },
+      });
+      return { case: await this.getCase(caseId, actorId) };
+    },
+
+    async adminRestore(caseId, actorId, reason = null) {
+      const c = await this.getCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      const nextStatus =
+        (c.confirmation_count ?? 0) >= CONFIRMATIONS_REQUIRED
+          ? "published"
+          : "pending";
+      await supabase
+        .from("cases")
+        .update({ status: nextStatus })
+        .eq("id", caseId);
+      await logEvent({
+        caseId,
+        eventType: "status_changed",
+        actorId,
+        source: "admin",
+        metadata: { to: nextStatus, reason: reason || undefined },
+      });
+      return { case: await this.getCase(caseId, actorId) };
+    },
+
+    async adminUnclaim(caseId, actorId, reason = null) {
+      const c = await this.getCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      await supabase
+        .from("cases")
+        .update({ claimed_by: null, lifecycle_state: "grey" })
+        .eq("id", caseId);
+      await logEvent({
+        caseId,
+        eventType: "unclaimed",
+        actorId,
+        source: "admin",
+        metadata: { reason: reason || undefined },
+      });
+      return { case: await this.getCase(caseId, actorId) };
+    },
+
+    async adminPatch(caseId, actorId, body = {}, reason = null) {
+      const { pickAdminEdits } = await import("../lib/adminCases.js");
+      const picked = pickAdminEdits(body);
+      if (picked.error) return picked;
+      const c = await this.getCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      const { error } = await supabase
+        .from("cases")
+        .update(picked.patch)
+        .eq("id", caseId);
+      if (error) throw error;
+      await logEvent({
+        caseId,
+        eventType: "admin_edited",
+        actorId,
+        source: "admin",
+        metadata: {
+          fields: Object.keys(picked.patch),
+          reason: reason || undefined,
+        },
+      });
+      return { case: await this.getCase(caseId, actorId) };
+    },
+
+    async adminMerge(sourceId, targetId, actorId, reason = null) {
+      if (sourceId === targetId) {
+        return { error: "Cannot merge a case into itself", status: 400 };
+      }
+      const source = await this.getCase(sourceId);
+      const target = await this.getCase(targetId);
+      if (!source || !target) {
+        return { error: "Case not found", status: 404 };
+      }
+
+      const nextPain =
+        (target.pain_count ?? 0) + Math.max(1, source.pain_count ?? 1);
+      const targetUpdate = { pain_count: nextPain };
+      if (source.status === "published" && target.status === "pending") {
+        targetUpdate.status = "published";
+        targetUpdate.confirmation_count = Math.max(
+          target.confirmation_count ?? 0,
+          CONFIRMATIONS_REQUIRED
+        );
+      }
+
+      await supabase.from("cases").update(targetUpdate).eq("id", targetId);
+      await supabase
+        .from("solves")
+        .update({ case_id: targetId })
+        .eq("case_id", sourceId);
+      await supabase
+        .from("cases")
+        .update({
+          status: "archived",
+          claimed_by: null,
+          lifecycle_state:
+            source.lifecycle_state === "green" ? "green" : "grey",
+        })
+        .eq("id", sourceId);
+
+      const { count } = await supabase
+        .from("solves")
+        .select("*", { count: "exact", head: true })
+        .eq("case_id", targetId);
+      if (typeof count === "number") {
+        await supabase
+          .from("cases")
+          .update({ solve_count: count })
+          .eq("id", targetId);
+      }
+
+      await logEvent({
+        caseId: targetId,
+        eventType: "merged_case",
+        actorId,
+        source: "admin",
+        metadata: {
+          from_case_id: sourceId,
+          reason: reason || undefined,
+        },
+      });
+      await logEvent({
+        caseId: sourceId,
+        eventType: "status_changed",
+        actorId,
+        source: "admin",
+        metadata: {
+          to: "archived",
+          merged_into: targetId,
+          reason: reason || undefined,
+        },
+      });
+
+      return {
+        case: await this.getCase(targetId, actorId),
+        archived: await this.getCase(sourceId, actorId),
+      };
+    },
+
+    async adminUnacceptSolve(solveId, actorId, reason = null) {
+      const { data: solve } = await supabase
+        .from("solves")
+        .select("*, cases(claimed_by, id, lifecycle_state)")
+        .eq("id", solveId)
+        .single();
+      if (!solve) return { error: "Solution not found", status: 404 };
+      await supabase.from("solves").update({ accepted: false }).eq("id", solveId);
+      const claimed = solve.cases?.claimed_by;
+      await supabase
+        .from("cases")
+        .update({ lifecycle_state: claimed ? "orange" : "grey" })
+        .eq("id", solve.case_id);
+      await logEvent({
+        caseId: solve.case_id,
+        eventType: "solve_unaccepted",
+        actorId,
+        source: "admin",
+        metadata: { solve_id: solveId, reason: reason || undefined },
+      });
+      return {
+        solve: { ...solve, accepted: false },
+        case: await this.getCase(solve.case_id, actorId),
+      };
+    },
+
+    async adminFlag(caseId, actorId, reason = null) {
+      const c = await this.getCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      await supabase
+        .from("cases")
+        .update({
+          flagged: true,
+          flag_reason: reason || c.flag_reason || null,
+          flagged_at: new Date().toISOString(),
+          flagged_by: actorId,
+        })
+        .eq("id", caseId);
+      await logEvent({
+        caseId,
+        eventType: "flagged",
+        actorId,
+        source: "admin",
+        metadata: { reason: reason || undefined },
+      });
+      return { case: await this.getCase(caseId, actorId) };
+    },
+
+    async adminUnflag(caseId, actorId, reason = null) {
+      const c = await this.getCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      await supabase
+        .from("cases")
+        .update({
+          flagged: false,
+          flag_reason: null,
+          flagged_at: null,
+          flagged_by: null,
+        })
+        .eq("id", caseId);
+      await logEvent({
+        caseId,
+        eventType: "unflagged",
+        actorId,
+        source: "admin",
+        metadata: { reason: reason || undefined },
+      });
+      return { case: await this.getCase(caseId, actorId) };
     },
 
     async submitCase({ text }) {

@@ -50,7 +50,7 @@ flowchart LR
 ### Scrape (automation)
 
 1. Cron or manual `POST /api/scrape/run` (secured with `CRON_SECRET` or signed-in user).
-2. [`backend/ingestion/runScrapeJob.js`](../backend/ingestion/runScrapeJob.js) → **Hacker News** (default, free) and optional Reddit → [`promoteSignal`](../backend/ingestion/promoteSignal.js) → Gemini/heuristic → precase row + case (`SCRAPE_PUBLISH_MODE=auto` or `pending`).
+2. [`backend/ingestion/runScrapeJob.js`](../backend/ingestion/runScrapeJob.js) → **Hacker News** (default, free) and optional Reddit → [`promoteSignal`](../backend/ingestion/promoteSignal.js) → Gemini/heuristic → precase row + case (`SCRAPE_PUBLISH_MODE` defaults to `pending`; set `auto` to publish immediately).
 3. `GET /api/ingestion/status` — last `scrape_runs` summary.
 
 ### Live updates
@@ -65,10 +65,16 @@ flowchart LR
 
 ## Security
 
-- Mutations require `Authorization: Bearer <supabase_jwt>`.
+- Mutations require `Authorization: Bearer <supabase_jwt>` (identity from verified JWT only — never `body.user_id`).
 - Service role key only on server.
+- Public Supabase URL/anon key from environment only (`shared/supabasePublic.js`); `/health` reports `supabase.configured` + optional Gemini deep ping.
+- Scraped cases default to **pending** until community confirmations (`SCRAPE_PUBLISH_MODE=pending`).
+- Claim uses atomic `UPDATE … WHERE claimed_by IS NULL` (409 on race).
+- Admin moderation: `roles.name=admin` + `/api/admin/*` (hide = `archived`).
+- Scrape HTTP requires `CRON_SECRET` or signed-in user (never open).
 - RLS on Supabase per `database/migrations/002_intelligence.sql`.
 - `case_events` migration: `database/migrations/005_case_events.sql`.
+- Runtime: Main SPA only — see [`docs/RUNTIME.md`](RUNTIME.md).
 
 ## Deployment
 

@@ -197,6 +197,145 @@ body {
   color: var(--ble-muted);
 }
 
+.health-badge {
+  font-size: 0.75rem;
+  font-family: ui-monospace, monospace;
+  color: var(--ble-muted);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--ble-border);
+  margin-left: auto;
+  margin-right: 0.75rem;
+}
+
+.health-badge--warn {
+  color: #ffb779;
+  border-color: rgba(255, 183, 121, 0.45);
+}
+
+.admin-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #13100d;
+  background: linear-gradient(135deg, #ffb779, #cd7f32);
+  padding: 0.28rem 0.65rem;
+  margin-right: 0.65rem;
+  border: none;
+}
+
+.admin-badge.hidden {
+  display: none;
+}
+
+/* Steward dedicated login */
+.steward-auth-page {
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(205, 127, 50, 0.12), transparent 55%),
+    #13100d;
+}
+
+.steward-auth-card .auth-brand h1 {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 2rem;
+  color: #ffb779;
+}
+
+.steward-auth-eyebrow {
+  margin: 0 0 0.35rem !important;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #43e2d2 !important;
+}
+
+.steward-auth-seal {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #13100d;
+  background: linear-gradient(135deg, #ffb779, #cd7f32);
+}
+
+.steward-auth-panel {
+  border-color: rgba(205, 127, 50, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(255, 183, 121, 0.08);
+}
+
+.steward-auth-label {
+  display: block;
+  font-size: 0.75rem;
+  color: rgba(229, 226, 225, 0.55);
+  margin: 0.75rem 0 0.35rem;
+}
+
+.steward-auth-label:first-child {
+  margin-top: 0;
+}
+
+.steward-auth-btn {
+  width: 100%;
+  margin-top: 1.25rem;
+  background: linear-gradient(135deg, #ffb779, #cd7f32) !important;
+  color: #13100d !important;
+  font-weight: 700;
+}
+
+.steward-demo-btn {
+  width: 100%;
+  background: #2a221c !important;
+  color: #ffb779 !important;
+  border: 1px solid rgba(255, 183, 121, 0.45) !important;
+  font-weight: 700;
+}
+
+.steward-demo-hint {
+  margin: 0.5rem 0 0;
+  text-align: center;
+  font-size: 0.7rem;
+  color: rgba(229, 226, 225, 0.45);
+  font-family: ui-monospace, monospace;
+}
+
+.steward-auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+  color: rgba(229, 226, 225, 0.4);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.steward-auth-divider::before,
+.steward-auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(83, 68, 56, 0.5);
+}
+
+.steward-auth-foot {
+  margin: 1.25rem 0 0;
+  text-align: center;
+}
+
+.steward-auth-link {
+  background: none;
+  border: none;
+  color: #43e2d2;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
 #signout-btn {
   background: var(--ble-surface-2);
   color: var(--ble-accent);
@@ -954,8 +1093,335 @@ body {
 }
 
 .submit-preview-card {
+  width: 100%;
   background: #13100d;
   border: 1px solid rgba(83, 68, 56, 0.35);
   border-radius: 10px;
   padding: 1rem;
+}
+
+/* ── Archive Steward (#/admin) ─────────────────────────────────────────── */
+
+.steward-hero h1 {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  letter-spacing: 0.01em;
+}
+
+.steward-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(14rem, 1fr);
+  gap: 0.75rem;
+  align-items: end;
+  max-width: 56rem;
+}
+
+.steward-opsbar {
+  padding: 0.85rem 1rem;
+  background: linear-gradient(180deg, rgba(28, 27, 27, 0.96), rgba(24, 21, 18, 0.96));
+  border: 1px solid rgba(83, 68, 56, 0.35);
+}
+
+.steward-opsbar__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(14rem, 1fr);
+  gap: 0.85rem;
+  align-items: end;
+}
+
+.steward-results-meta {
+  color: rgba(229, 226, 225, 0.5);
+  align-self: center;
+}
+
+.steward-search-label,
+.steward-field-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(229, 226, 225, 0.45);
+}
+
+.steward-search,
+.steward-field {
+  width: 100%;
+  background: #1c1b1b;
+  border: 1px solid rgba(83, 68, 56, 0.45);
+  color: #e5e2e1;
+  padding: 0.55rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.steward-field--area {
+  resize: vertical;
+  min-height: 4rem;
+  font-family: inherit;
+}
+
+.steward-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  background: #1c1b1b;
+  border-left: 3px solid #cd7f32;
+}
+
+.steward-bulk__count {
+  font-size: 0.8rem;
+  color: #ffb779;
+  margin-right: 0.25rem;
+}
+
+.steward-select {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  cursor: pointer;
+  max-width: 100%;
+}
+
+.steward-select input {
+  margin-top: 0.35rem;
+}
+
+.steward-repair,
+.steward-audit {
+  margin-top: 0.75rem;
+  padding: 0.85rem;
+  background: #181512;
+  border: 1px solid rgba(83, 68, 56, 0.35);
+}
+
+.steward-repair-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+@media (max-width: 640px) {
+  .steward-toolbar,
+  .steward-opsbar__row,
+  .steward-repair-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.steward-repair .steward-field-label {
+  display: block;
+  margin-top: 0.65rem;
+  margin-bottom: 0.25rem;
+}
+
+.steward-solves {
+  padding: 0.65rem 0.75rem;
+  background: rgba(67, 226, 210, 0.06);
+  border-left: 2px solid rgba(67, 226, 210, 0.4);
+}
+
+.steward-audit-list,
+.steward-precase-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.steward-audit-list li,
+.steward-precase-list li {
+  font-size: 0.8rem;
+  color: rgba(229, 226, 225, 0.7);
+  line-height: 1.4;
+}
+
+.steward-audit-when {
+  display: block;
+  font-size: 0.7rem;
+  color: rgba(229, 226, 225, 0.4);
+}
+
+.steward-precase {
+  padding: 0.85rem 1rem;
+  background: #1c1b1b;
+}
+
+.nav-steward-label {
+  margin: 0 0 0.75rem;
+  padding: 0 0.25rem;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #43e2d2;
+}
+
+.steward-card--flagged {
+  border-color: rgba(255, 120, 100, 0.45);
+}
+
+.steward-chip--flag {
+  background: rgba(255, 120, 100, 0.2);
+  color: #ffb4a8;
+}
+
+.steward-flag-reason {
+  color: #ffb4a8;
+}
+
+.steward-user-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.steward-user-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: #1c1b1b;
+  border: 1px solid rgba(83, 68, 56, 0.35);
+}
+
+.steward-user-email {
+  margin: 0 0 0.25rem;
+  color: #ffb779;
+  font-weight: 600;
+}
+
+.steward-user-meta {
+  margin: 0;
+  color: rgba(229, 226, 225, 0.45);
+}
+
+.steward-user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.steward-field--compact {
+  width: auto;
+  min-width: 8rem;
+}
+
+.steward-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.steward-filter {
+  background: #1c1b1b;
+  color: rgba(229, 226, 225, 0.7);
+  border: none;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.steward-filter.is-active {
+  background: #2a221c;
+  color: #ffb779;
+}
+
+.steward-filter:hover {
+  color: #e5e2e1;
+}
+
+.steward-context {
+  padding: 0.75rem 0;
+  background: #1c1b1b;
+}
+
+.steward-context p {
+  margin: 0;
+  padding: 0 0.25rem;
+}
+
+.steward-msg {
+  padding: 0.65rem 0.85rem;
+  background: #1c1b1b;
+  color: #e5e2e1;
+}
+
+.steward-msg--ok {
+  color: #43e2d2;
+}
+
+.steward-msg--warn {
+  color: #ffb779;
+}
+
+.steward-card {
+  background: #201a16;
+  padding: 1.1rem 1.25rem;
+}
+
+.steward-priority {
+  margin: 0 0 0.2rem;
+  color: #43e2d2;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.steward-card--pending {
+  background: #241c16;
+  box-shadow: inset 3px 0 0 #cd7f32;
+}
+
+.steward-card--published {
+  box-shadow: inset 3px 0 0 rgba(67, 226, 210, 0.55);
+}
+
+.steward-card--claimed {
+  background: #2a2218;
+  box-shadow: inset 3px 0 0 #ffb779;
+}
+
+.steward-card--archived {
+  background: #1a1816;
+  opacity: 0.85;
+  box-shadow: inset 3px 0 0 rgba(83, 68, 56, 0.8);
+}
+
+.steward-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+}
+
+.steward-disclaimer {
+  border-left: 2px solid rgba(67, 226, 210, 0.4);
+  padding-left: 0.75rem;
+  margin: 0;
+}
+
+.steward-chip {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  background: #2a2a2a;
+  color: rgba(229, 226, 225, 0.75);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.steward-chip--status {
+  color: #43e2d2;
+}
+
+.steward-chip--sensitive {
+  color: #ffb68c;
+}
+
+.steward-chip--claim {
+  color: #ffb779;
 }

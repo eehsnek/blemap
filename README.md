@@ -10,7 +10,7 @@ Problem intelligence platform: validate and structure real-world problems, plot 
 
 ## Primary application (Main SPA)
 
-**This repo’s supported product is the Main SPA** at the repository root:
+**This repo’s supported product is the Main SPA** at the repository root. Do not start a second server or nested app on port 4000.
 
 | Piece | Path |
 |-------|------|
@@ -135,7 +135,7 @@ Browser
 
 - **`/config.js`** — injected at runtime so the UI and API share the same origin (`http://localhost:4000`).
 - **`frontend/api.js`** — all data calls go to `/api/...` with Supabase JWT when logged in.
-- **`frontend/config.js`** — reads `window.__BLEMAP_CONFIG` from the server; falls back to shared defaults in `shared/supabasePublic.js`.
+- **`frontend/config.js`** — reads `window.__BLEMAP_CONFIG` from the server (`/config.js`). Supabase URL/anon key come from `.env` only (no hardcoded project defaults).
 
 Auth (sign-up / login) uses **Supabase** from the browser; case data uses the **Express API**.
 
@@ -168,8 +168,9 @@ Copy `.env.example` to `.env`:
 | Variable | Purpose |
 |----------|---------|
 | `PORT` | Default `4000` |
-| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Auth + `/config.js` |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | **Required for Auth** — served via `/config.js` (no hardcoded fallback) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Persist cases in Supabase instead of memory |
+| `BLEMAP_DEV_AUTH` | Set `1` only in local dev without Supabase Auth to allow a synthetic user (never production) |
 | `GEMINI_API_KEY` | AI for submit + **required for production scrape** ([Google AI Studio](https://aistudio.google.com/apikey)) |
 | `GEMINI_MODEL` | Default `gemini-3.6-flash` (do not use retired `gemini-2.0-flash`) |
 | `CRON_SECRET` | Secures `POST /api/scrape/run` (Vercel cron uses Bearer token when set) |
@@ -177,7 +178,8 @@ Copy `.env.example` to `.env`:
 | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | **Required for scrape** — [Reddit app prefs](https://www.reddit.com/prefs/apps) |
 | `REDDIT_USERNAME` / `REDDIT_PASSWORD` | For **script**-type apps only (your Reddit login) |
 | `REDDIT_USER_AGENT` | e.g. `web:BleMap:v1.0.0 (by /u/YourUsername)` |
-| `SCRAPE_PUBLISH_MODE` | `auto` (publish valid scrapes) or `pending` (community confirm first) |
+| `SCRAPE_PUBLISH_MODE` | Default `pending` (community confirm first); set `auto` to publish scrapes immediately |
+| `BLEMAP_ADMIN_USER_IDS` | Comma-separated user UUIDs treated as admin (bootstrap). Prefer DB `roles.name=admin` via migration `009_admin_role.sql` |
 | `SOLVE_AI_ENFORCE` | `true` to reject irrelevant solutions on submit; default advisory via `/solve/analyze` |
 | `NOTIFY_HIGH_GAP_THRESHOLD` | Prospector high-gap toast threshold (default `70`) |
 | `CONFIRMATIONS_REQUIRED` | Default `5` (user submit only) |
@@ -185,17 +187,20 @@ Copy `.env.example` to `.env`:
 ### Automation (AI + Reddit)
 
 1. Set `GEMINI_API_KEY` in `.env` (heuristic fallback works locally without it; production scrape returns 503 without it).
-2. Optional: set `CRON_SECRET` — then manual runs use `npm run scrape` or Prospector while signed in.
+2. Set `CRON_SECRET` for HTTP scrape (`POST /api/scrape/run`). Local `npm run scrape` calls the pipeline directly (no HTTP). Prospector scrape requires sign-in or `CRON_SECRET`.
 3. **Local:** `npm run dev` in one terminal, `npm run scrape` in another.
 4. **Vercel:** set `CRON_SECRET`, `GEMINI_API_KEY`, and Supabase keys. Cron runs every 6h (`vercel.json`). Run [`database/migrations/004_precase_automation.sql`](database/migrations/004_precase_automation.sql) in Supabase for precase status + scrape logs.
 5. Check last run: `GET /api/ingestion/status`
 6. Run migration [`database/migrations/005_case_events.sql`](database/migrations/005_case_events.sql) for activity audit + Supabase Realtime
+7. Admin moderation: run [`database/migrations/009_admin_role.sql`](database/migrations/009_admin_role.sql), then promote one user in SQL (see migration comments). Admin UI at `#/admin`. For local demos, open `/steward` and use **Demo Steward login** (provisions `steward.demo@blemap.local`; disabled in production or when `BLEMAP_DEMO_STEWARD=0`).
+8. Health: `GET /health` and `GET /health?deep=1` (Gemini ping). See also [`docs/RUNTIME.md`](docs/RUNTIME.md).
 
 ### Live updates & metrics API
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /api/metrics/summary` | Aggregate counts by domain, quadrant, ingest funnel |
+| `GET /steward` or `/admin/login` | Archive Steward sign-in (`#/steward-login`) |
+| `GET /api/me` | Current user + `isAdmin` |
 | `GET /api/activity/recent?limit=20` | Living Archive activity feed |
 | `GET /api/cases/:id/events` | Per-case audit trail |
 | `GET /api/cases?q=&domain=&status=&lifecycle_state=&limit=&offset=` | Search and filter |
@@ -209,7 +214,7 @@ Matrix and Prospector poll every 60s; Supabase Realtime pushes updates when `sto
 
 ### Sign-up & auth
 
-Auth runs in the browser against **Supabase** (defaults in `shared/supabasePublic.js`, overridable via `.env` and `/config.js`). Case data uses the **Express API** on the same origin.
+Auth runs in the browser against **Supabase**. Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `.env` (served to the client via `/config.js`). There is no hardcoded project fallback. Case data uses the **Express API** on the same origin. Without Supabase keys, the API uses an in-memory store and Auth is unavailable unless `BLEMAP_DEV_AUTH=1` (local only).
 
 1. Use **http://localhost:4000** (not `file://`).
 2. Use a **real email** (avoid `@example.com`).

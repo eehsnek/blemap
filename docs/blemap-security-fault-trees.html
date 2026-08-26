@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BleMap · Software Fault Trees (×3)</title>
+  <style>
+    :root {
+      --purple: #4a2c6a;
+      --pink: #c43b6e;
+      --box: #d6eaf8;
+      --box-border: #2c5aa0;
+      --text: #1a2744;
+      --gate: #2b6cb0;
+      --bg: #f7f5fb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .slide {
+      max-width: 1100px;
+      margin: 24px auto;
+      background: #fff;
+      border: 1px solid #ddd;
+      min-height: 640px;
+      page-break-after: always;
+    }
+    .header {
+      background: var(--purple);
+      color: #fff;
+      padding: 14px 20px;
+      font-size: 1.25rem;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .badge {
+      background: var(--pink);
+      color: #fff;
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      border-radius: 4px;
+    }
+    .body { padding: 20px 24px 16px; }
+    .top-event {
+      font-size: 0.95rem;
+      color: #444;
+      margin: 0 0 18px;
+      max-width: 720px;
+    }
+    .tree {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+    .node {
+      background: var(--box);
+      border: 1.5px solid var(--box-border);
+      color: var(--box-border);
+      padding: 10px 14px;
+      text-align: center;
+      font-size: 0.88rem;
+      font-weight: 600;
+      max-width: 320px;
+      min-width: 160px;
+      line-height: 1.3;
+    }
+    .node.top { max-width: 420px; font-size: 0.95rem; }
+    .node.basic { font-weight: 500; font-size: 0.8rem; max-width: 200px; }
+    .gate {
+      width: 48px;
+      height: 30px;
+      margin: 6px auto 8px;
+      border: 2px solid var(--gate);
+      border-radius: 0 0 24px 24px;
+      color: var(--gate);
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: grid;
+      place-items: center;
+      background: #fff;
+      text-transform: lowercase;
+    }
+    .gate.and {
+      border-radius: 4px;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 16px 20px;
+      align-items: flex-start;
+      width: 100%;
+    }
+    .branch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 340px;
+    }
+    .footer {
+      padding: 10px 20px 16px;
+      color: var(--pink);
+      font-size: 0.85rem;
+    }
+    .req {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.7rem;
+      font-weight: 500;
+      opacity: 0.75;
+    }
+    nav {
+      max-width: 1100px;
+      margin: 16px auto 0;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 0 8px;
+    }
+    nav a {
+      color: var(--purple);
+      text-decoration: none;
+      border: 1px solid var(--purple);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+    nav a:hover { background: #eee6f5; }
+    @media print {
+      nav { display: none; }
+      .slide { border: none; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="#s1">1 · Auth</a>
+    <a href="#s2">2 · Input & embedding</a>
+    <a href="#s3">3 · Admin</a>
+  </nav>
+
+  <!-- ========== SLIDE 1 ========== -->
+  <section class="slide" id="s1">
+    <div class="header">
+      <span>BleMap fault tree — Authentication &amp; authorization</span>
+      <span class="badge">1</span>
+    </div>
+    <div class="body">
+      <p class="top-event"><strong>Top event:</strong> A user cannot securely access BleMap, or an unauthorized person gains access.</p>
+      <div class="tree">
+        <div class="node top">Unauthorized or failed user authentication</div>
+        <div class="gate">or</div>
+        <div class="row">
+          <div class="branch">
+            <div class="node">Legitimate user cannot authenticate</div>
+            <div class="gate">or</div>
+            <div class="row">
+              <div class="node basic">Supabase Auth unreachable<span class="req">Req 9</span></div>
+              <div class="node basic">Email confirm blocked / rate-limited<span class="req">Req 1</span></div>
+              <div class="node basic">Wrong Site URL / anon key / redirects<span class="req">Req 1, 4</span></div>
+              <div class="node basic">Confusing auth error messages<span class="req">Req 8</span></div>
+            </div>
+          </div>
+          <div class="branch">
+            <div class="node">Unauthorized person gains access</div>
+            <div class="gate">or</div>
+            <div class="row">
+              <div class="node basic">Protected routes without valid JWT<span class="req">Req 1, 4</span></div>
+              <div class="node basic">Stolen / leaked Bearer session<span class="req">Req 4, 6</span></div>
+              <div class="node basic">Elevated key or broken RLS<span class="req">Req 4, 5</span></div>
+              <div class="node basic">Missing role checks for elevated actions<span class="req">Req 1, 10</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">BleMap · Dependability &amp; Security Specification · Fault tree 1 of 3</div>
+  </section>
+
+  <!-- ========== SLIDE 2 ========== -->
+  <section class="slide" id="s2">
+    <div class="header">
+      <span>BleMap fault tree — Case input &amp; embedding pipeline</span>
+      <span class="badge">2</span>
+    </div>
+    <div class="body">
+      <p class="top-event"><strong>Top event:</strong> A user-submitted problem is lost, incorrectly processed, incorrectly matched, or stored as an invalid case.</p>
+      <div class="tree">
+        <div class="node top">Failure of the case input and embedding pipeline</div>
+        <div class="gate">or</div>
+        <div class="row">
+          <div class="branch">
+            <div class="node">Submission lost before persist</div>
+            <div class="gate">or</div>
+            <div class="row">
+              <div class="node basic">Draft expired / memory wipe<span class="req">Req 9</span></div>
+              <div class="node basic">Confirm DB insert fails silently<span class="req">Req 8</span></div>
+              <div class="node basic">Session gone at confirm (401)<span class="req">Req 1</span></div>
+            </div>
+          </div>
+          <div class="branch">
+            <div class="node">Invalid or unsafe case stored</div>
+            <div class="gate">or</div>
+            <div class="row">
+              <div class="node basic">Malformed text accepted<span class="req">Req 2</span></div>
+              <div class="node basic">Untrusted scrape executed as script<span class="req">Req 2, 6</span></div>
+              <div class="node basic">Unnecessary PII in public fields<span class="req">Req 3</span></div>
+            </div>
+          </div>
+          <div class="branch">
+            <div class="node">Incorrect embedding match / merge</div>
+            <div class="gate">or</div>
+            <div class="row">
+              <div class="node basic">Wrong / missing embedding<span class="req">Req 7</span></div>
+              <div class="node basic">Threshold mis-tuned<span class="req">Req 7</span></div>
+              <div class="node basic">Embed failure crashes app<span class="req">Req 7, 9</span></div>
+              <div class="node basic">Embed errors leak internals<span class="req">Req 7, 8</span></div>
+            </div>
+          </div>
+          <div class="branch">
+            <div class="node">AI analyze produces wrong structure</div>
+            <div class="gate and">and</div>
+            <div class="row">
+              <div class="node basic">Gemini down / bad model / key<span class="req">Req 9</span></div>
+              <div class="node basic">Heuristic accepts junk as valid<span class="req">Req 2</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">BleMap · Dependability &amp; Security Specification · Fault tree 2 of 3</div>
+  </section>
+
+  <!-- ========== SLIDE 3 ========== -->
+  <section class="slide" id="s3">
+    <div class="header">
+      <span>BleMap fault tree — Administrative management</span>
+      <span class="badge">3</span>
+    </div>
+    <div class="body">
+      <p class="top-event"><strong>Top event:</strong> An administrator cannot properly manage BleMap data, or administrative privileges are misused.</p>
+      <div class="tree">
+        <div class="node top">Unauthorized, incorrect, or failed administrative management</div>
+        <div class="gate">or</div>
+        <div class="row">
+          <div class="branch">
+            <div class="node">Administrator cannot manage data</div>
+            <div class="gate">or</div>
+            <div class="row">
+              <div class="node basic">No authenticated admin UI/API<span class="req">Req 10</span></div>
+              <div class="node basic">Service role key missing / rotated<span class="req">Req 4, 5</span></div>
+              <div class="node basic">RLS blocks needed admin ops<span class="req">Req 5</span></div>
+              <div class="node basic">Ops errors not actionable<span class="req">Req 8</span></div>
+            </div>
+          </div>
+          <div class="branch">
+            <div class="node">Administrative privileges misused</div>
+            <div class="gate">or</div>
+            <div class="row">
+              <div class="node basic">Destructive ops without role check<span class="req">Req 1, 10</span></div>
+              <div class="node basic">Delete/bulk change without confirm<span class="req">Req 10</span></div>
+              <div class="node basic">Secret key in frontend / public repo<span class="req">Req 4</span></div>
+              <div class="node basic">Scrape/rebuild open without cron/admin<span class="req">Req 4, 10</span></div>
+            </div>
+          </div>
+          <div class="branch">
+            <div class="node">Incorrect administrative change</div>
+            <div class="gate">or</div>
+            <div class="row">
+              <div class="node basic">Wrong case merged / archived / deleted<span class="req">Req 10</span></div>
+              <div class="node basic">Admin export exposes unnecessary PII<span class="req">Req 3</span></div>
+              <div class="node basic">No audit trail for destructive ops<span class="req">Req 8, 10</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">BleMap · Dependability &amp; Security Specification · Fault tree 3 of 3</div>
+  </section>
+</body>
+</html>

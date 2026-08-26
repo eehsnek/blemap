@@ -1,9 +1,3 @@
-export const DEFAULT_SUPABASE_URL =
-  "https://kktedcwrxsrkbyzxchjt.supabase.co";
-
-export const DEFAULT_SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrdGVkY3dyeHNya2J5enhjaGp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNjMwNjQsImV4cCI6MjA5MzYzOTA2NH0.kMlmUDeAmpOnYlrUXqsuNFlJHoIFqYyrmFG8ewPHTK8";
-
 const PLACEHOLDER_MARKERS = [
   "your-project",
   "your-anon-key",
@@ -19,20 +13,29 @@ function isPlaceholder(value) {
   return PLACEHOLDER_MARKERS.some((m) => v.includes(m));
 }
 
-function pickSupabaseValue(value, fallback) {
-  return isPlaceholder(value) ? fallback : value.trim();
+function cleanEnv(value) {
+  if (isPlaceholder(value)) return null;
+  return value.trim();
 }
 
+/**
+ * Resolve browser/public Supabase config from environment only.
+ * No hardcoded project URL or anon key — missing values → configured: false.
+ *
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {{ url: string|null, anonKey: string|null, configured: boolean }}
+ */
 export function resolvePublicSupabaseConfig(env = process.env) {
-  const url = pickSupabaseValue(
-    env.SUPABASE_URL?.trim() || env.VITE_SUPABASE_URL?.trim(),
-    DEFAULT_SUPABASE_URL
+  const url = cleanEnv(
+    env.SUPABASE_URL?.trim() || env.VITE_SUPABASE_URL?.trim()
+  );
+  const anonKey = cleanEnv(
+    env.SUPABASE_ANON_KEY?.trim() || env.VITE_SUPABASE_ANON_KEY?.trim()
   );
 
-  const anonKey = pickSupabaseValue(
-    env.SUPABASE_ANON_KEY?.trim() || env.VITE_SUPABASE_ANON_KEY?.trim(),
-    DEFAULT_SUPABASE_ANON_KEY
-  );
+  if (!url || !anonKey) {
+    return { url: null, anonKey: null, configured: false };
+  }
 
-  return { url, anonKey };
+  return { url, anonKey, configured: true };
 }

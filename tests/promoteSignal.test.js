@@ -52,7 +52,9 @@ test("skips duplicate permalink", async () => {
   assert.equal(second.status, "skipped");
 });
 
-test("promotes valid unique problem as published", async () => {
+test("promotes valid unique problem as pending by default", async () => {
+  const prev = process.env.SCRAPE_PUBLISH_MODE;
+  delete process.env.SCRAPE_PUBLISH_MODE;
   const { ctx, adapter } = makeAdapter();
   const result = await promoteSignal(
     {
@@ -65,7 +67,28 @@ test("promotes valid unique problem as published", async () => {
   );
   assert.equal(result.status, "promoted");
   assert.equal(ctx.cases.length, 1);
-  assert.equal(ctx.cases[0].status, "published");
+  assert.equal(ctx.cases[0].status, "pending");
   assert.equal(ctx.cases[0].source, "reddit");
   assert.ok(ctx.cases[0].permalinks[0].includes("reddit.com"));
+  if (prev === undefined) delete process.env.SCRAPE_PUBLISH_MODE;
+  else process.env.SCRAPE_PUBLISH_MODE = prev;
+});
+
+test("promotes as published when SCRAPE_PUBLISH_MODE=auto", async () => {
+  const prev = process.env.SCRAPE_PUBLISH_MODE;
+  process.env.SCRAPE_PUBLISH_MODE = "auto";
+  const { ctx, adapter } = makeAdapter();
+  const result = await promoteSignal(
+    {
+      title: "Bank added hidden monthly fees after I opened checking account",
+      body: "Fees were not disclosed at signup and support will not remove them.",
+      permalink: "/r/personalfinance/comments/new2",
+      subreddit: "r/personalfinance",
+    },
+    adapter
+  );
+  assert.equal(result.status, "promoted");
+  assert.equal(ctx.cases[0].status, "published");
+  if (prev === undefined) delete process.env.SCRAPE_PUBLISH_MODE;
+  else process.env.SCRAPE_PUBLISH_MODE = prev;
 });

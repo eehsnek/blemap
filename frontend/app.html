@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/frontend/app.css">
-  <link rel="stylesheet" href="/frontend/theme.css?v=10">
+  <link rel="stylesheet" href="/frontend/theme.css?v=14">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/config.js"></script>
   <script>
@@ -61,11 +61,14 @@
       </section>
     </div>
   </div>
+  <div id="steward-auth-screen" style="display:none"></div>
   <div id="app-shell">
     <aside id="app-nav"></aside>
     <div class="app-main-column">
       <header>
         <p id="auth-status"></p>
+        <span id="admin-badge" class="admin-badge hidden" title="Archive Steward role">Steward</span>
+        <span id="health-badge" class="health-badge" title="Store / Supabase status">…</span>
         <button type="button" id="signout-btn">Sign Out</button>
       </header>
       <main id="main-content"></main>

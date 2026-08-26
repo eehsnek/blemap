@@ -240,6 +240,7 @@ function renderCard(c, user) {
       <span class="text-[#43e2d2] font-mono text-sm shrink-0">Gap ${c.gap_score ?? "—"}</span>
     </div>
     <p class="text-[#e5e2e1]/75 text-sm mt-1">${escapeHtml(c.summary)}</p>
+    <p class="text-xs text-[#e5e2e1]/45 mt-2">Source · ${escapeHtml(c.source || "user")}${c.domain ? ` · ${escapeHtml(c.domain)}` : ""}</p>
     ${c.disclaimer ? `<p class="text-xs text-[#43e2d2]/70 mt-2">${escapeHtml(c.disclaimer)}</p>` : ""}
     ${isPending ? `
       <div class="mt-3">
@@ -423,7 +424,15 @@ async function loadCases(user) {
   if (pending.length) {
     const h = document.createElement("h3");
     h.className = "text-[#ffb779] font-semibold mb-2 col-span-full";
-    h.textContent = "Awaiting validation";
+    const scrapePending = pending.filter((c) =>
+      ["hackernews", "reddit", "ingest", "scrape"].includes(
+        String(c.source || "").toLowerCase()
+      )
+    ).length;
+    h.textContent =
+      scrapePending > 0
+        ? `Awaiting validation (${pending.length} · ${scrapePending} from scrape)`
+        : `Awaiting validation (${pending.length})`;
     container.appendChild(h);
     pending.forEach((c) => container.appendChild(renderCard(c, user)));
   }

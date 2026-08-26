@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 import apiRouter from "./routes/api.js";
 import { getStore } from "./store/index.js";
 import { resolvePublicSupabaseConfig } from "./config/supabasePublic.js";
+import {
+  buildHealthReport,
+  logGeminiStartupGuard,
+} from "./lib/healthChecks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, "..");
@@ -17,20 +21,35 @@ const port = Number(process.env.PORT) || 4000;
 app.use(cors());
 app.use(express.json());
 
-app.get("/health", (_req, res) => {
-  res.json({ ok: true, store: getStore().mode });
+app.get("/health", async (req, res, next) => {
+  try {
+    const deep = req.query.deep === "1" || req.query.deep === "true";
+    const report = await buildHealthReport({ deep });
+    res.status(report.ok ? 200 : 503).json(report);
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.get("/config.js", (_req, res) => {
-  const { url: supabaseUrl, anonKey: supabaseAnonKey } =
+  const { url: supabaseUrl, anonKey: supabaseAnonKey, configured } =
     resolvePublicSupabaseConfig();
+  const demoSteward =
+    process.env.NODE_ENV !== "production" &&
+    process.env.VERCEL !== "1" &&
+    process.env.BLEMAP_DEMO_STEWARD !== "0";
 
   res.type("application/javascript").send(
     `window.__BLEMAP_CONFIG = ${JSON.stringify({
       apiBase: "",
       supabaseUrl,
       supabaseAnonKey,
+      supabaseConfigured: configured,
       store: getStore().mode,
+      demoSteward,
+      demoStewardEmail: demoSteward
+        ? process.env.BLEMAP_DEMO_STEWARD_EMAIL || "steward.demo@blemap.local"
+        : null,
     })};`
   );
 });
@@ -38,6 +57,15 @@ app.get("/config.js", (_req, res) => {
 app.use("/api", apiRouter);
 
 app.get("/", (_req, res) => res.redirect("/frontend/app.html"));
+app.get("/steward", (_req, res) =>
+  res.redirect("/frontend/app.html#/steward-login")
+);
+app.get("/admin", (_req, res) =>
+  res.redirect("/frontend/app.html#/steward-login")
+);
+app.get("/admin/login", (_req, res) =>
+  res.redirect("/frontend/app.html#/steward-login")
+);
 app.get("/frontend/index.html", (_req, res) => res.redirect("/frontend/app.html"));
 app.get("/frontend/home.html", (_req, res) => res.redirect("/frontend/app.html#/home"));
 app.get("/frontend/caseMatrix.html", (_req, res) => res.redirect("/frontend/app.html#/matrix"));
@@ -72,6 +100,9 @@ if (!process.env.VERCEL) {
   const server = app.listen(port, () => {
     console.log(`BleMap server http://localhost:${port}`);
     console.log(`  App:         http://localhost:${port}/frontend/app.html`);
+    logGeminiStartupGuard().catch((err) => {
+      console.error("[gemini] startup guard error:", err.message || err);
+    });
   });
 
   server.on("error", (err) => {

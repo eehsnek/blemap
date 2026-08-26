@@ -11,7 +11,12 @@ const EVENT_TYPES = new Set([
   "solve_unaccepted",
   "marked_solved",
   "merged_signal",
+  "merged_case",
   "status_changed",
+  "admin_edited",
+  "flagged",
+  "unflagged",
+  "role_changed",
 ]);
 
 /**

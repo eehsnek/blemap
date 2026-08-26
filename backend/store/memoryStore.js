@@ -69,6 +69,10 @@ function seedCases() {
     status: "published",
     confirmation_count: CONFIRMATIONS_REQUIRED,
     source: "seed",
+    flagged: false,
+    flag_reason: null,
+    flagged_at: null,
+    flagged_by: null,
     raw_input: c.summary,
     cta_text: "Claim and propose a solution path.",
     created_at: new Date().toISOString(),
@@ -119,7 +123,7 @@ export function createMemoryStore() {
   }
 
   function publishedCases() {
-    return cases.filter((c) => c.status === "published");
+    return cases.filter((c) => c.status === "published" && !c.flagged);
   }
 
   function maxPain() {
@@ -576,6 +580,256 @@ export function createMemoryStore() {
 
     async runScrapePipeline() {
       return runScrapeJob(ingestionAdapter());
+    },
+
+    async adminListModeration() {
+      return [...cases]
+        .map((c) =>
+          enrichCase(c, {
+            solves: solves.filter((s) => s.case_id === c.id),
+            maxPain: maxPain(),
+          })
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.created_at || 0).getTime() -
+            new Date(a.created_at || 0).getTime()
+        );
+    },
+
+    async adminPublish(caseId, actorId, reason = null) {
+      const c = findCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      c.status = "published";
+      c.confirmation_count = Math.max(
+        c.confirmation_count ?? 0,
+        CONFIRMATIONS_REQUIRED
+      );
+      logEvent({
+        caseId,
+        eventType: "status_changed",
+        actorId,
+        source: "admin",
+        metadata: { to: "published", reason: reason || undefined },
+      });
+      return {
+        case: enrichCase(c, {
+          solves: solves.filter((s) => s.case_id === c.id),
+          maxPain: maxPain(),
+        }),
+      };
+    },
+
+    async adminHide(caseId, actorId, reason = null) {
+      const c = findCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      c.status = "archived";
+      logEvent({
+        caseId,
+        eventType: "status_changed",
+        actorId,
+        source: "admin",
+        metadata: { to: "archived", reason: reason || undefined },
+      });
+      return {
+        case: enrichCase(c, {
+          solves: solves.filter((s) => s.case_id === c.id),
+          maxPain: maxPain(),
+        }),
+      };
+    },
+
+    async adminRestore(caseId, actorId, reason = null) {
+      const c = findCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      c.status =
+        (c.confirmation_count ?? 0) >= CONFIRMATIONS_REQUIRED
+          ? "published"
+          : "pending";
+      logEvent({
+        caseId,
+        eventType: "status_changed",
+        actorId,
+        source: "admin",
+        metadata: { to: c.status, reason: reason || undefined },
+      });
+      return {
+        case: enrichCase(c, {
+          solves: solves.filter((s) => s.case_id === c.id),
+          maxPain: maxPain(),
+        }),
+      };
+    },
+
+    async adminUnclaim(caseId, actorId, reason = null) {
+      const c = findCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      c.claimed_by = null;
+      if (c.lifecycle_state === "orange" || c.lifecycle_state === "green") {
+        c.lifecycle_state = "grey";
+      }
+      logEvent({
+        caseId,
+        eventType: "unclaimed",
+        actorId,
+        source: "admin",
+        metadata: { reason: reason || undefined },
+      });
+      return {
+        case: enrichCase(c, {
+          solves: solves.filter((s) => s.case_id === c.id),
+          maxPain: maxPain(),
+        }),
+      };
+    },
+
+    async adminPatch(caseId, actorId, body = {}, reason = null) {
+      const { pickAdminEdits } = await import("../lib/adminCases.js");
+      const picked = pickAdminEdits(body);
+      if (picked.error) return picked;
+      const c = findCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      Object.assign(c, picked.patch);
+      logEvent({
+        caseId,
+        eventType: "admin_edited",
+        actorId,
+        source: "admin",
+        metadata: {
+          fields: Object.keys(picked.patch),
+          reason: reason || undefined,
+        },
+      });
+      return {
+        case: enrichCase(c, {
+          solves: solves.filter((s) => s.case_id === c.id),
+          maxPain: maxPain(),
+        }),
+      };
+    },
+
+    async adminMerge(sourceId, targetId, actorId, reason = null) {
+      if (sourceId === targetId) {
+        return { error: "Cannot merge a case into itself", status: 400 };
+      }
+      const source = findCase(sourceId);
+      const target = findCase(targetId);
+      if (!source || !target) {
+        return { error: "Case not found", status: 404 };
+      }
+      target.pain_count =
+        (target.pain_count ?? 0) + Math.max(1, source.pain_count ?? 1);
+      for (const s of solves) {
+        if (s.case_id === sourceId) s.case_id = targetId;
+      }
+      target.solve_count = solves.filter((s) => s.case_id === targetId).length;
+      if (source.status === "published" && target.status === "pending") {
+        target.status = "published";
+        target.confirmation_count = Math.max(
+          target.confirmation_count ?? 0,
+          CONFIRMATIONS_REQUIRED
+        );
+      }
+      source.status = "archived";
+      source.claimed_by = null;
+      if (source.lifecycle_state !== "green") source.lifecycle_state = "grey";
+      logEvent({
+        caseId: targetId,
+        eventType: "merged_case",
+        actorId,
+        source: "admin",
+        metadata: {
+          from_case_id: sourceId,
+          reason: reason || undefined,
+        },
+      });
+      logEvent({
+        caseId: sourceId,
+        eventType: "status_changed",
+        actorId,
+        source: "admin",
+        metadata: {
+          to: "archived",
+          merged_into: targetId,
+          reason: reason || undefined,
+        },
+      });
+      return {
+        case: enrichCase(target, {
+          solves: solves.filter((s) => s.case_id === targetId),
+          maxPain: maxPain(),
+        }),
+        archived: enrichCase(source, { maxPain: maxPain() }),
+      };
+    },
+
+    async adminUnacceptSolve(solveId, actorId, reason = null) {
+      const solve = solves.find((s) => s.id === solveId);
+      if (!solve) return { error: "Solution not found", status: 404 };
+      const c = findCase(solve.case_id);
+      if (!c) return { error: "Case not found", status: 404 };
+      solve.accepted = false;
+      if (c.lifecycle_state === "green") {
+        c.lifecycle_state = c.claimed_by ? "orange" : "grey";
+      }
+      logEvent({
+        caseId: c.id,
+        eventType: "solve_unaccepted",
+        actorId,
+        source: "admin",
+        metadata: { solve_id: solveId, reason: reason || undefined },
+      });
+      return {
+        solve,
+        case: enrichCase(c, {
+          solves: solves.filter((s) => s.case_id === c.id),
+          maxPain: maxPain(),
+        }),
+      };
+    },
+
+    async adminFlag(caseId, actorId, reason = null) {
+      const c = findCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      c.flagged = true;
+      c.flag_reason = reason || c.flag_reason || null;
+      c.flagged_at = new Date().toISOString();
+      c.flagged_by = actorId;
+      logEvent({
+        caseId,
+        eventType: "flagged",
+        actorId,
+        source: "admin",
+        metadata: { reason: reason || undefined },
+      });
+      return {
+        case: enrichCase(c, {
+          solves: solves.filter((s) => s.case_id === c.id),
+          maxPain: maxPain(),
+        }),
+      };
+    },
+
+    async adminUnflag(caseId, actorId, reason = null) {
+      const c = findCase(caseId);
+      if (!c) return { error: "Case not found", status: 404 };
+      c.flagged = false;
+      c.flag_reason = null;
+      c.flagged_at = null;
+      c.flagged_by = null;
+      logEvent({
+        caseId,
+        eventType: "unflagged",
+        actorId,
+        source: "admin",
+        metadata: { reason: reason || undefined },
+      });
+      return {
+        case: enrichCase(c, {
+          solves: solves.filter((s) => s.case_id === c.id),
+          maxPain: maxPain(),
+        }),
+      };
     },
 
     /** @deprecated direct submit — use analyze + confirm */

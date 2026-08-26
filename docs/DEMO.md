@@ -6,6 +6,16 @@
 npm install && npm run dev
 ```
 
+For demos/prod durability: set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` so `/health` shows `store: "supabase"`. Memory store is for unit tests / ephemeral local only — cases wipe on restart.
+
+### Archive Steward (admin) demo login
+
+1. Open **http://localhost:4000/steward**
+2. Click **Demo Steward login** (local only — provisions `steward.demo@blemap.local` as admin)
+3. You land on the Archive Steward desk
+
+Or sign in with a real admin account. Promote via SQL after `009_admin_role.sql`.
+
 Open http://localhost:4000
 
 ## Script
@@ -18,10 +28,10 @@ Open http://localhost:4000
 
 4. **Prospector** — Prospector view → pick highest gap case → **Claim** → add solution → **Accept** as claimant.
 
-5. **Scrape** — Prospector → **Run ingest scrape** → new cases from Hacker News (Reddit if OAuth is configured).
+5. **Scrape** — Prospector → **Run ingest scrape** → new cases from Hacker News land as **pending** (default) until community validation; set `SCRAPE_PUBLISH_MODE=auto` only for demos that need immediate matrix publish.
 
 ## Talking points
 
 - "Problem intelligence" = validate, dedupe, score urgency (gap), not just a forum.
-- Community trust = confirm-before-visible + domain disclaimers.
+- Community trust = confirm-before-visible + domain disclaimers (scrapes included by default).
 - Builder workflow = prospector queue sorted by gap.

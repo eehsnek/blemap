@@ -1,15 +1,25 @@
 import { createClient } from "@supabase/supabase-js";
+import { isProfileDisabled } from "../lib/adminUsers.js";
 
 let supabaseAuth;
 
 function getAuthClient() {
   if (!supabaseAuth) {
     const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const key =
+      process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!url || !key) return null;
     supabaseAuth = createClient(url, key);
   }
   return supabaseAuth;
+}
+
+function allowDevAuthBypass() {
+  return (
+    process.env.BLEMAP_DEV_AUTH === "1" &&
+    process.env.NODE_ENV !== "production" &&
+    !getAuthClient()
+  );
 }
 
 export async function optionalAuth(req, _res, next) {
@@ -20,7 +30,6 @@ export async function optionalAuth(req, _res, next) {
   const token = header.slice(7);
   const client = getAuthClient();
   if (!client) {
-    req.user = { id: req.body?.user_id || req.query?.user_id || null };
     return next();
   }
 
@@ -29,15 +38,27 @@ export async function optionalAuth(req, _res, next) {
   next();
 }
 
-export function requireAuth(req, res, next) {
-  if (req.user?.id) return next();
-  if (!getAuthClient() && process.env.NODE_ENV !== "production") {
-    req.user = { id: "dev-local-user" };
+export async function requireAuth(req, res, next) {
+  try {
+    if (!req.user?.id) {
+      if (allowDevAuthBypass()) {
+        req.user = { id: "dev-local-user" };
+        return next();
+      }
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    if (await isProfileDisabled(req.user.id)) {
+      return res
+        .status(403)
+        .json({ error: "Account disabled by Archive Steward" });
+    }
     return next();
+  } catch (err) {
+    return next(err);
   }
-  return res.status(401).json({ error: "Authentication required" });
 }
 
+/** Verified JWT identity only — never trust body or query user_id (SR-01). */
 export function getUserId(req) {
-  return req.user?.id ?? req.body?.user_id ?? null;
+  return req.user?.id ?? null;
 }

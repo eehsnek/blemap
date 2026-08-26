@@ -101,6 +101,18 @@ function showLoginForm() {
   document.getElementById("signin-password")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") trySignIn();
   });
+
+  let foot = document.getElementById("community-auth-foot");
+  if (!foot) {
+    foot = document.createElement("p");
+    foot.id = "community-auth-foot";
+    foot.className = "steward-auth-foot";
+    forms.parentElement?.appendChild(foot);
+  }
+  foot.innerHTML = `<button type="button" id="to-steward-login" class="steward-auth-link">Archive Steward sign-in →</button>`;
+  document.getElementById("to-steward-login")?.addEventListener("click", () => {
+    window.location.hash = "#/steward-login";
+  });
 }
 
 function showRegisterForm() {

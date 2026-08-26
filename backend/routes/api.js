@@ -3,6 +3,8 @@ import { getStore } from "../store/index.js";
 import { parseCaseFilters } from "../lib/caseFilters.js";
 import { optionalAuth, requireAuth, getUserId } from "../middleware/auth.js";
 import { requireCronOrUser } from "../middleware/cronAuth.js";
+import { isAdminUser } from "../middleware/requireAdmin.js";
+import adminRouter from "./admin.js";
 import devAuthRouter from "./devAuth.js";
 
 const router = Router();
@@ -11,6 +13,22 @@ router.use(optionalAuth);
 if (process.env.NODE_ENV !== "production") {
   router.use("/dev", devAuthRouter);
 }
+
+router.use("/admin", adminRouter);
+
+router.get("/me", requireAuth, async (req, res, next) => {
+  try {
+    const id = getUserId(req);
+    const isAdmin = await isAdminUser(id);
+    res.json({
+      id,
+      email: req.user?.email ?? null,
+      isAdmin,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 function sendStoreError(res, result) {
   if (result?.error) {

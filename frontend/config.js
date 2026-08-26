@@ -1,15 +1,10 @@
-import {
-  DEFAULT_SUPABASE_URL,
-  DEFAULT_SUPABASE_ANON_KEY,
-} from "../shared/supabasePublic.js";
-
 const defaults = {
   apiBase:
     typeof window !== "undefined"
       ? window.location.origin
       : "http://localhost:4000",
-  supabaseUrl: DEFAULT_SUPABASE_URL,
-  supabaseAnonKey: DEFAULT_SUPABASE_ANON_KEY,
+  supabaseUrl: null,
+  supabaseAnonKey: null,
 };
 
 const runtime =
@@ -26,17 +21,23 @@ function isPlaceholder(value) {
   );
 }
 
-function pick(value, fallback) {
+function pickUrl(value, fallback) {
   if (isPlaceholder(value)) return fallback;
   return String(value).trim();
 }
 
-export const API_BASE = pick(runtime.apiBase, defaults.apiBase);
-export const SUPABASE_URL = pick(runtime.supabaseUrl, defaults.supabaseUrl);
-export const SUPABASE_ANON_KEY = pick(
-  runtime.supabaseAnonKey,
-  defaults.supabaseAnonKey
-);
+export const API_BASE = pickUrl(runtime.apiBase, defaults.apiBase);
+
+const resolvedUrl = isPlaceholder(runtime.supabaseUrl)
+  ? null
+  : String(runtime.supabaseUrl).trim();
+const resolvedAnon = isPlaceholder(runtime.supabaseAnonKey)
+  ? null
+  : String(runtime.supabaseAnonKey).trim();
+
+export const SUPABASE_URL = resolvedUrl;
+export const SUPABASE_ANON_KEY = resolvedAnon;
+export const SUPABASE_CONFIGURED = Boolean(resolvedUrl && resolvedAnon);
 
 export function caseDetailUrl(caseId) {
   return `${API_BASE}/frontend/app.html#/case/${caseId}`;
