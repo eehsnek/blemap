@@ -55,7 +55,11 @@ function detectDomain(text) {
   return "general";
 }
 
-function heuristicAnalyze(text, existingCases = []) {
+const PROBLEM_CUE =
+  /\b(because|cannot|can't|won't|unable|refus|harm|fail|broken|delay|unfair|denied|stuck|problem|issue|no one|nobody|dispute|withheld|hidden fees?)\b/i;
+const JUNK_LEAD = /^(lorem ipsum|asdf|test test|aaaa|xxxx)/i;
+
+function heuristicAnalyze(text, existingCases = [], opts = {}) {
   const trimmed = normalizeSubmitText(text);
   const count = wordCount(trimmed);
 
@@ -111,6 +115,20 @@ function heuristicAnalyze(text, existingCases = []) {
     domain === "law" || domain === "medicine"
       ? 0.75
       : Math.min(0.35 + wordCount / 80, 0.95);
+
+  if (opts.strict && (JUNK_LEAD.test(trimmed) || !PROBLEM_CUE.test(trimmed))) {
+    const coach = buildRejectionCoach(trimmed);
+    return {
+      isValid: false,
+      rejectionMessage:
+        "AI assist is offline, so this needs a clearer real-world problem: who is harmed and what goes wrong.",
+      rejectionReason: "heuristic_strict",
+      suggestions: coach.suggestions,
+      expandPrompt: coach.expandPrompt,
+      wordCount: count,
+      wordsRequired: MIN_SUBMIT_WORDS,
+    };
+  }
 
   return {
     isValid: true,
@@ -253,7 +271,9 @@ export async function analyzeSubmission(text, existingCases = [], opts = {}) {
     console.warn("AI analyze fallback:", err.message);
   }
   return applyEmbeddingMatches(
-    heuristicAnalyze(normalized, existingCases),
+    heuristicAnalyze(normalized, existingCases, {
+      strict: Boolean(opts.strictHeuristic),
+    }),
     embeddingMatches,
     existingCases
   );

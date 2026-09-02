@@ -1,7 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createMemoryStore } from "../backend/store/memoryStore.js";
-import { requireCronOrUser } from "../backend/middleware/cronAuth.js";
+import {
+  requireCronOrUser,
+  requireCronOrAdmin,
+} from "../backend/middleware/cronAuth.js";
 import { geminiModelId, buildHealthReport } from "../backend/lib/healthChecks.js";
 
 test("second claim on same case returns 409", async () => {
@@ -48,7 +51,7 @@ test("admin publish forces published", async () => {
   assert.equal(published.case.status, "published");
 });
 
-test("requireCronOrUser rejects anonymous without secret", () => {
+test("requireCronOrUser rejects anonymous without secret", async () => {
   const prev = process.env.CRON_SECRET;
   delete process.env.CRON_SECRET;
 
@@ -64,7 +67,7 @@ test("requireCronOrUser rejects anonymous without secret", () => {
     },
   };
   let next = false;
-  requireCronOrUser(req, res, () => {
+  await requireCronOrUser(req, res, () => {
     next = true;
   });
   assert.equal(next, false);
@@ -74,16 +77,42 @@ test("requireCronOrUser rejects anonymous without secret", () => {
   else process.env.CRON_SECRET = prev;
 });
 
-test("requireCronOrUser allows signed-in user", () => {
-  let next = false;
-  requireCronOrUser(
+test("requireCronOrAdmin rejects signed-in community user", async () => {
+  const prev = process.env.BLEMAP_ADMIN_USER_IDS;
+  delete process.env.BLEMAP_ADMIN_USER_IDS;
+  let status = null;
+  await requireCronOrAdmin(
     { user: { id: "u1" }, headers: {} },
+    {
+      status(code) {
+        status = code;
+        return this;
+      },
+      json() {
+        return this;
+      },
+    },
+    () => {}
+  );
+  assert.equal(status, 403);
+  if (prev === undefined) delete process.env.BLEMAP_ADMIN_USER_IDS;
+  else process.env.BLEMAP_ADMIN_USER_IDS = prev;
+});
+
+test("requireCronOrAdmin allows allowlisted steward", async () => {
+  const prev = process.env.BLEMAP_ADMIN_USER_IDS;
+  process.env.BLEMAP_ADMIN_USER_IDS = "admin-1";
+  let next = false;
+  await requireCronOrAdmin(
+    { user: { id: "admin-1" }, headers: {} },
     { status() { return this; }, json() { return this; } },
     () => {
       next = true;
     }
   );
   assert.equal(next, true);
+  if (prev === undefined) delete process.env.BLEMAP_ADMIN_USER_IDS;
+  else process.env.BLEMAP_ADMIN_USER_IDS = prev;
 });
 
 test("buildHealthReport includes store supabase gemini", async () => {

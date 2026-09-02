@@ -76,3 +76,18 @@ export function enrichCase(row, opts = {}) {
 export function filterPublished(cases) {
   return cases.filter((c) => c.status === "published");
 }
+
+/** Public API must not leak verbatim paste or embedding vectors (Req 3). */
+export function stripSensitiveCaseFields(row) {
+  if (!row || typeof row !== "object") return row;
+  const { raw_input, embedding, ...rest } = row;
+  return rest;
+}
+
+export function stripSensitivePayload(payload) {
+  if (Array.isArray(payload)) return payload.map(stripSensitiveCaseFields);
+  if (payload?.case) {
+    return { ...payload, case: stripSensitiveCaseFields(payload.case) };
+  }
+  return stripSensitiveCaseFields(payload);
+}

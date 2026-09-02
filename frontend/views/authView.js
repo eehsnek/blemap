@@ -11,6 +11,9 @@ import {
   applySession,
   clearPasswordRecovery,
   isPasswordRecoveryPending,
+  saveResetPrefill,
+  readResetPrefill,
+  clearResetPrefill,
 } from "../lib/authSafety.js";
 
 export function mount(container) {
@@ -305,7 +308,6 @@ export function showForgotForm() {
     <label class="steward-auth-label" for="forgot-email">Email</label>
     <input id="forgot-email" type="email" autocomplete="username" placeholder="Email" class="auth-field" />
     <button type="button" id="forgot-send-btn" class="auth-btn auth-btn-login">Send reset instructions</button>
-    <div id="forgot-dev-box" class="auth-dev-box" hidden></div>
   `;
 
   const send = async () => {
@@ -320,29 +322,18 @@ export function showForgotForm() {
     const result = await requestPasswordReset(email);
     btn.disabled = false;
     btn.textContent = "Send reset instructions";
-    msg(result.data.message || result.data.error || "If an account exists, we sent reset instructions.", !result.ok);
-
-    const box = document.getElementById("forgot-dev-box");
-    if (box && result.ok && result.data.dev) {
-      box.hidden = false;
-      const rawLink = result.data.dev.recoveryUrl || "";
-      const safeLink = /^https?:\/\//i.test(rawLink) ? rawLink : "";
-      const otp = result.data.dev.otp
-        ? `<p><strong>Local reset code:</strong> <code>${escapeAttr(result.data.dev.otp)}</code></p>`
-        : "";
-      const link = safeLink
-        ? `<p><a class="auth-inline-link" href="${escapeAttr(safeLink)}">Open reset link</a></p>`
-        : "";
-      box.innerHTML = `${otp}${link}<p class="auth-hint">Local only — production sends email, never this box.</p>
-        <button type="button" id="goto-reset-btn" class="auth-link-btn">I have a reset code →</button>`;
-      document.getElementById("goto-reset-btn")?.addEventListener("click", () => {
-        navigate("reset-password");
-        showResetForm({ email, otp: result.data.dev.otp });
-      });
-    } else if (result.ok) {
-      navigate("reset-password");
-      showResetForm({ email });
+    if (!result.ok) {
+      return msg(result.data.error || "Could not send reset instructions.", true);
     }
+
+    saveResetPrefill({
+      email,
+      otp: result.data.dev?.otp || "",
+      local: Boolean(result.data.dev?.otp),
+    });
+    msg("Check your email for a reset code, then set a new password.");
+    navigate("reset-password");
+    showResetForm();
   };
 
   document.getElementById("forgot-send-btn")?.addEventListener("click", send);
@@ -363,6 +354,9 @@ export function showResetForm(prefill = {}) {
   const forms = document.getElementById("auth-forms");
   if (!forms) return;
   setTabsVisible(false);
+  const stored = readResetPrefill();
+  const email = prefill.email || stored.email || "";
+  const otp = prefill.otp || stored.otp || "";
   const recoverySession = isPasswordRecoveryPending();
   forms.innerHTML = `
     <h2 class="auth-subhead">Choose a new password</h2>
@@ -372,12 +366,13 @@ export function showResetForm(prefill = {}) {
         : "Enter the email, the reset code from your message, and a new password."
     }</p>
     <label class="steward-auth-label" for="reset-email">Email</label>
-    <input id="reset-email" type="email" autocomplete="username" placeholder="Email" class="auth-field" value="${escapeAttr(prefill.email)}" />
+    <input id="reset-email" type="email" autocomplete="username" placeholder="Email" class="auth-field" value="${escapeAttr(email)}" />
     ${
       recoverySession
         ? ""
         : `<label class="steward-auth-label" for="reset-otp">Reset code</label>
-           <input id="reset-otp" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code" class="auth-field" value="${escapeAttr(prefill.otp)}" />`
+           <input id="reset-otp" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="Code from your email" class="auth-field" value="${escapeAttr(otp)}" />
+           <p class="auth-hint">Use the code from your email. It expires after a short time.</p>`
     }
     <label class="steward-auth-label" for="reset-password">New password</label>
     ${passwordRow("reset-password", { autocomplete: "new-password", placeholder: "New password (min 8, letter + number)" })}
@@ -409,6 +404,7 @@ export function showResetForm(prefill = {}) {
       btn.textContent = "Update password";
       if (error) return msg(error.message || "Could not update password. Request a new reset link.", true);
       clearPasswordRecovery();
+      clearResetPrefill();
       msg("Password updated. Opening your workspace…");
       window.dispatchEvent(new CustomEvent("blemap:authenticated"));
       return;
@@ -422,6 +418,7 @@ export function showResetForm(prefill = {}) {
     const applied = await applySession(supabase, result.data);
     if (applied.error) return msg(applied.error, true);
     clearPasswordRecovery();
+    clearResetPrefill();
     msg(result.data.message || "Password updated. Opening your workspace…");
     window.dispatchEvent(new CustomEvent("blemap:authenticated"));
   };

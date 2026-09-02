@@ -216,7 +216,10 @@ export function createMemoryStore() {
             threshold: Number(process.env.EMBEDDING_SUGGEST_THRESHOLD ?? 0.5),
           })
         : [];
-      const analysis = await analyzeSubmission(text, cases, { embeddingMatches });
+      const analysis = await analyzeSubmission(text, cases, {
+        embeddingMatches,
+        strictHeuristic: true,
+      });
       const draftId = randomUUID();
       drafts.set(draftId, {
         id: draftId,
@@ -225,6 +228,7 @@ export function createMemoryStore() {
         analysis,
         embedding,
         created_at: Date.now(),
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
       });
       return { draftId, ...analysis, embeddingAvailable: Boolean(embedding) };
     },
@@ -232,6 +236,10 @@ export function createMemoryStore() {
     async confirmSubmit({ draftId, userId, mergeIntoCaseId, forceNew = false }) {
       const draft = drafts.get(draftId);
       if (!draft) return { error: "Draft not found or expired", status: 404 };
+      if (draft.expiresAt && draft.expiresAt < Date.now()) {
+        drafts.delete(draftId);
+        return { error: "Draft not found or expired", status: 404 };
+      }
       if (draft.user_id && userId && draft.user_id !== userId) {
         return { error: "Not authorized for this draft", status: 403 };
       }

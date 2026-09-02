@@ -5,6 +5,7 @@ import {
   computePainLevel,
   matrixQuadrant,
   enrichCase,
+  stripSensitiveCaseFields,
 } from "../backend/lib/caseMetrics.js";
 
 test("high pain low solves yields high gap score", () => {
@@ -40,4 +41,16 @@ test("enrichCase adds gap_score and disclaimer for law", () => {
   });
   assert.ok(row.gap_score >= 0);
   assert.ok(row.disclaimer);
+});
+
+test("stripSensitiveCaseFields removes raw_input and embedding", () => {
+  const stripped = stripSensitiveCaseFields({
+    id: "1",
+    topic: "Public topic",
+    raw_input: "secret pasted text",
+    embedding: [0.1, 0.2],
+  });
+  assert.equal(stripped.topic, "Public topic");
+  assert.equal(stripped.raw_input, undefined);
+  assert.equal(stripped.embedding, undefined);
 });

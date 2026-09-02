@@ -2,8 +2,9 @@ import { Router } from "express";
 import { getStore } from "../store/index.js";
 import { parseCaseFilters } from "../lib/caseFilters.js";
 import { optionalAuth, requireAuth, getUserId } from "../middleware/auth.js";
-import { requireCronOrUser } from "../middleware/cronAuth.js";
+import { requireCronOrAdmin } from "../middleware/cronAuth.js";
 import { isAdminUser } from "../middleware/requireAdmin.js";
+import { stripSensitivePayload } from "../lib/caseMetrics.js";
 import adminRouter from "./admin.js";
 import devAuthRouter from "./devAuth.js";
 import authSafetyRouter from "./authSafety.js";
@@ -47,7 +48,7 @@ router.get("/test", async (_req, res, next) => {
   }
 });
 
-router.post("/scrape/run", requireCronOrUser, async (_req, res, next) => {
+router.post("/scrape/run", requireCronOrAdmin, async (_req, res, next) => {
   try {
     const store = getStore();
     if (!store.runScrapePipeline) {
@@ -106,18 +107,22 @@ router.get("/cases", async (req, res, next) => {
     const view = req.query.view;
     const filters = parseCaseFilters(req.query);
 
+    const redact = !(await isAdminUser(userId));
+    const send = (payload) =>
+      res.json(redact ? stripSensitivePayload(payload) : payload);
+
     if (view === "matrix") {
-      return res.json(await getStore().listMatrixCases(userId, filters));
+      return send(await getStore().listMatrixCases(userId, filters));
     }
     if (view === "prospector") {
-      return res.json(await getStore().listProspectorCases(userId, filters));
+      return send(await getStore().listProspectorCases(userId, filters));
     }
     if (view === "pending") {
       const all = await getStore().listCases(userId, { filters });
-      return res.json(all.filter((c) => c.status === "pending"));
+      return send(all.filter((c) => c.status === "pending"));
     }
 
-    res.json(await getStore().listCases(userId, { filters }));
+    return send(await getStore().listCases(userId, { filters }));
   } catch (err) {
     next(err);
   }
@@ -138,9 +143,11 @@ router.get("/cases/:id/events", async (req, res, next) => {
 
 router.get("/cases/:id", async (req, res, next) => {
   try {
-    const c = await getStore().getCase(req.params.id, getUserId(req));
+    const userId = getUserId(req);
+    const c = await getStore().getCase(req.params.id, userId);
     if (!c) return res.status(404).json({ error: "Case not found" });
-    res.json(c);
+    const redact = !(await isAdminUser(userId));
+    res.json(redact ? stripSensitivePayload(c) : c);
   } catch (err) {
     next(err);
   }

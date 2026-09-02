@@ -19,14 +19,22 @@ export function mount(container) {
       <div id="ingestion-status" class="mb-4 text-sm text-[#e5e2e1]/60 hidden"></div>
       <div id="pending-scrape-hint" class="mb-4 text-sm text-[#ffb779]/80 hidden"></div>
       <div id="scrape-summary" class="mb-4 hidden rounded-lg border border-[#534438]/30 bg-[#201a16] p-3 text-sm text-[#e5e2e1]/80"></div>
-      <button type="button" id="run-scrape" class="mb-6 text-sm bg-[#2a2a2a] text-[#43e2d2] px-4 py-2 rounded hover:bg-[#333] transition">
+      <button type="button" id="run-scrape" class="mb-6 text-sm bg-[#2a2a2a] text-[#43e2d2] px-4 py-2 rounded hover:bg-[#333] transition hidden">
         Run ingest scrape
       </button>
+      <p id="scrape-steward-hint" class="mb-6 text-sm text-[#e5e2e1]/50">Ingest scrape is limited to Archive Stewards (or cron).</p>
       <div id="prospector-list" class="space-y-4"></div>
     </div>
   `;
 
-  document.getElementById("run-scrape").addEventListener("click", runScrape);
+  document.getElementById("run-scrape")?.addEventListener("click", runScrape);
+  void apiFetch("/me")
+    .then((me) => {
+      if (!me?.isAdmin) return;
+      document.getElementById("run-scrape")?.classList.remove("hidden");
+      document.getElementById("scrape-steward-hint")?.classList.add("hidden");
+    })
+    .catch(() => {});
 
   const filterCleanup = mountCaseFilters(
     document.getElementById("prospector-filters"),

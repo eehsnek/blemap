@@ -106,3 +106,39 @@ export function formatRetry(ms) {
   const mins = Math.max(1, Math.ceil(Number(ms || 0) / 60000));
   return `${mins} minute${mins === 1 ? "" : "s"}`;
 }
+
+const RESET_PREFILL_KEY = "blemap-reset-prefill";
+
+export function saveResetPrefill({ email = "", otp = "", local = false } = {}) {
+  try {
+    sessionStorage.setItem(
+      RESET_PREFILL_KEY,
+      JSON.stringify({ email, otp, local: Boolean(local) })
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readResetPrefill() {
+  try {
+    const raw = sessionStorage.getItem(RESET_PREFILL_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return {
+      email: parsed.email || "",
+      otp: parsed.otp || "",
+      local: Boolean(parsed.local),
+    };
+  } catch {
+    return {};
+  }
+}
+
+export function clearResetPrefill() {
+  try {
+    sessionStorage.removeItem(RESET_PREFILL_KEY);
+  } catch {
+    /* ignore */
+  }
+}

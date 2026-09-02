@@ -516,6 +516,18 @@ async function onBulk(action) {
     await loadQueue();
     return;
   }
+  const n = selectedIds.size;
+  if (!n) {
+    showMsg("Select at least one case first.", "warn");
+    return;
+  }
+  if (
+    !window.confirm(
+      `Apply bulk “${action}” to ${n} case${n === 1 ? "" : "s"}? This cannot be undone from this screen.`
+    )
+  ) {
+    return;
+  }
   try {
     const result = await apiFetch("/admin/cases/bulk", {
       method: "POST",
@@ -547,6 +559,15 @@ async function onAction(id, act, topic, article, extra = {}) {
     }
     if (act === "hide") {
       if (!window.confirm(`Hide “${topic || "this case"}”?`)) return;
+    }
+    if (act === "publish") {
+      if (!window.confirm(`Publish “${topic || "this case"}” to the matrix?`)) return;
+    }
+    if (act === "restore") {
+      if (!window.confirm(`Restore “${topic || "this case"}”?`)) return;
+    }
+    if (act === "unclaim") {
+      if (!window.confirm(`Clear the claim on “${topic || "this case"}”?`)) return;
     }
     if (act === "flag") {
       await apiFetch(`/admin/cases/${id}/flag`, {

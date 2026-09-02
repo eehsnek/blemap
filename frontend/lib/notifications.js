@@ -16,7 +16,10 @@ export function showToast(message, { duration = 5000, action } = {}) {
   const container = ensureContainer();
   const el = document.createElement("div");
   el.className = "blemap-toast";
-  el.innerHTML = `<span class="blemap-toast__msg">${message}</span>`;
+  const msg = document.createElement("span");
+  msg.className = "blemap-toast__msg";
+  msg.textContent = String(message ?? "");
+  el.appendChild(msg);
   if (action) {
     const btn = document.createElement("button");
     btn.type = "button";

@@ -9,6 +9,7 @@ import {
   requestPasswordReset,
   applySession,
   resendConfirmation,
+  saveResetPrefill,
 } from "../lib/authSafety.js";
 
 /**
@@ -147,7 +148,6 @@ export function mount(container) {
       <label class="steward-auth-label" for="steward-forgot-email">Steward email</label>
       <input id="steward-forgot-email" type="email" autocomplete="username" placeholder="steward@…" class="auth-field" />
       <button type="button" id="steward-forgot-send" class="auth-btn steward-auth-btn">Send reset instructions</button>
-      <div id="steward-dev-box" class="auth-dev-box" hidden></div>
       <p class="steward-auth-foot">
         <button type="button" id="steward-forgot-back" class="steward-auth-link">← Back to steward sign-in</button>
       </p>
@@ -162,15 +162,15 @@ export function mount(container) {
       const result = await requestPasswordReset(email);
       btn.disabled = false;
       btn.textContent = "Send reset instructions";
-      msg(result.data.message || result.data.error || "If an account exists, we sent reset instructions.", !result.ok);
-      const box = container.querySelector("#steward-dev-box");
-      if (box && result.ok && result.data.dev) {
-        box.hidden = false;
-        const otp = result.data.dev.otp
-          ? `<p><strong>Local reset code:</strong> <code>${result.data.dev.otp}</code></p>`
-          : "";
-        box.innerHTML = `${otp}<p class="auth-hint">Open community sign-in → I have a reset code, or use the code on <a class="auth-inline-link" href="#/reset-password">#/reset-password</a>.</p>`;
+      if (!result.ok) {
+        return msg(result.data.error || "Could not send reset instructions.", true);
       }
+      saveResetPrefill({
+        email,
+        otp: result.data.dev?.otp || "",
+        local: Boolean(result.data.dev?.otp),
+      });
+      navigate("reset-password");
     };
 
     container.querySelector("#steward-forgot-send")?.addEventListener("click", send);

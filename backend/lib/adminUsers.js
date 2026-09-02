@@ -12,6 +12,20 @@ export function manageableRoles() {
   return [...MANAGEABLE_ROLES];
 }
 
+async function logStewardAudit(admin, { eventType, actorId, targetUserId, metadata }) {
+  try {
+    const { error } = await admin.from("steward_audit").insert({
+      event_type: eventType,
+      actor_id: actorId || null,
+      target_user_id: targetUserId || null,
+      metadata: metadata || {},
+    });
+    if (error) console.warn("steward_audit:", error.message);
+  } catch (err) {
+    console.warn("steward_audit:", err.message);
+  }
+}
+
 async function emailMap(admin) {
   const map = new Map();
   const perPage = 200;
@@ -124,6 +138,13 @@ export async function setUserRole(targetUserId, roleName, actorId) {
     if (updErr) throw updErr;
   }
 
+  await logStewardAudit(admin, {
+    eventType: "role_changed",
+    actorId,
+    targetUserId,
+    metadata: { role },
+  });
+
   return {
     user: {
       id: targetUserId,
@@ -172,6 +193,13 @@ export async function setUserDisabled(targetUserId, disabled, actorId) {
     .update({ disabled: Boolean(disabled) })
     .eq("id", targetUserId);
   if (error) throw error;
+
+  await logStewardAudit(admin, {
+    eventType: disabled ? "user_disabled" : "user_enabled",
+    actorId,
+    targetUserId,
+    metadata: { disabled: Boolean(disabled) },
+  });
 
   return { user: { id: targetUserId, disabled: Boolean(disabled) } };
 }

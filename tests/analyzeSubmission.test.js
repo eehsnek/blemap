@@ -26,6 +26,16 @@ test("normalizes common typos before analyze", async () => {
   assert.equal(r.isValid, true);
 });
 
+test("strict heuristic rejects long junk without a problem cue", async () => {
+  const r = await analyzeSubmission(
+    "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    [],
+    { strictHeuristic: true }
+  );
+  assert.equal(r.isValid, false);
+  assert.equal(r.rejectionReason, "heuristic_strict");
+});
+
 test("accepts substantive problem", async () => {
   const r = await analyzeSubmission(
     "My landlord has refused to return my security deposit for three months despite no damages listed on move-out inspection report.",

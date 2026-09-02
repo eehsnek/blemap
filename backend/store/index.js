@@ -17,6 +17,55 @@ import { randomUUID } from "node:crypto";
 import { createSupabaseIngestionAdapter } from "../ingestion/adapters/supabaseAdapter.js";
 import { runScrapeJob } from "../ingestion/runScrapeJob.js";
 
+const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+
+async function persistSubmitDraft(supabase, draft) {
+  const { error } = await supabase.from("submit_drafts").upsert({
+    id: draft.id,
+    user_id: draft.user_id || null,
+    raw_input: draft.raw_input,
+    analysis: draft.analysis,
+    expires_at: new Date(draft.expiresAt).toISOString(),
+  });
+  if (error) throw error;
+}
+
+async function loadSubmitDraft(supabase, drafts, draftId) {
+  const mem = drafts.get(draftId);
+  if (mem) {
+    if (mem.expiresAt && mem.expiresAt < Date.now()) {
+      drafts.delete(draftId);
+    } else {
+      return mem;
+    }
+  }
+  const { data, error } = await supabase
+    .from("submit_drafts")
+    .select("id, user_id, raw_input, analysis, expires_at")
+    .eq("id", draftId)
+    .maybeSingle();
+  if (error || !data) return null;
+  if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) {
+    await supabase.from("submit_drafts").delete().eq("id", draftId);
+    return null;
+  }
+  const draft = {
+    id: data.id,
+    user_id: data.user_id,
+    raw_input: data.raw_input,
+    analysis: data.analysis,
+    embedding: null,
+    expiresAt: data.expires_at ? new Date(data.expires_at).getTime() : 0,
+  };
+  drafts.set(draftId, draft);
+  return draft;
+}
+
+async function dropSubmitDraft(supabase, drafts, draftId) {
+  drafts.delete(draftId);
+  await supabase.from("submit_drafts").delete().eq("id", draftId).catch(() => {});
+}
+
 function createSupabaseStore() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -163,14 +212,22 @@ function createSupabaseStore() {
             threshold: Number(process.env.EMBEDDING_SUGGEST_THRESHOLD ?? 0.5),
           })
         : [];
-      const analysis = await analyzeSubmission(text, rows, { embeddingMatches });
+      const analysis = await analyzeSubmission(text, rows, {
+        embeddingMatches,
+        strictHeuristic: true,
+      });
       const draftId = randomUUID();
-      drafts.set(draftId, {
+      const draft = {
         id: draftId,
         raw_input: text,
         user_id: userId,
         analysis,
         embedding,
+        expiresAt: Date.now() + DRAFT_TTL_MS,
+      };
+      drafts.set(draftId, draft);
+      await persistSubmitDraft(supabase, draft).catch((err) => {
+        console.warn("submit_drafts persist:", err.message);
       });
       return {
         draftId,
@@ -180,8 +237,11 @@ function createSupabaseStore() {
     },
 
     async confirmSubmit({ draftId, userId, mergeIntoCaseId, forceNew = false }) {
-      const draft = drafts.get(draftId);
-      if (!draft) return { error: "Draft not found", status: 404 };
+      const draft = await loadSubmitDraft(supabase, drafts, draftId);
+      if (!draft) return { error: "Draft not found or expired", status: 404 };
+      if (draft.user_id && userId && draft.user_id !== userId) {
+        return { error: "Not authorized for this draft", status: 403 };
+      }
       const { analysis } = draft;
       if (!analysis.isValid) {
         return { error: analysis.rejectionMessage, status: 400 };
@@ -198,7 +258,7 @@ function createSupabaseStore() {
           .from("cases")
           .update({ pain_count: c.pain_count + 1 })
           .eq("id", id);
-        drafts.delete(draftId);
+        await dropSubmitDraft(supabase, drafts, draftId);
         await logEvent({
           caseId: id,
           eventType: "merged_signal",
@@ -252,7 +312,7 @@ function createSupabaseStore() {
         .select()
         .single();
       if (error) throw error;
-      drafts.delete(draftId);
+      await dropSubmitDraft(supabase, drafts, draftId);
       await logEvent({
         caseId: data.id,
         eventType: "submitted",

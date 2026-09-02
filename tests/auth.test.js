@@ -4,6 +4,7 @@ import {
   getUserId,
   requireAuth,
 } from "../backend/middleware/auth.js";
+import { requireAdmin } from "../backend/middleware/requireAdmin.js";
 import { scrapePublishMode } from "../backend/ingestion/config.js";
 import { resolvePublicSupabaseConfig } from "../shared/supabasePublic.js";
 
@@ -62,6 +63,47 @@ test("requireAuth allows verified user through", async () => {
   });
   assert.equal(nextCalled, true);
   assert.equal(req.user.id, "already-authed");
+});
+
+test("requireAdmin rejects verified non-admin", async () => {
+  const prev = process.env.BLEMAP_ADMIN_USER_IDS;
+  delete process.env.BLEMAP_ADMIN_USER_IDS;
+  let status = null;
+  let body = null;
+  await requireAdmin(
+    { user: { id: "community-1" } },
+    {
+      status(code) {
+        status = code;
+        return this;
+      },
+      json(payload) {
+        body = payload;
+        return this;
+      },
+    },
+    () => {}
+  );
+  assert.equal(status, 403);
+  assert.equal(body?.error, "Admin role required");
+  if (prev === undefined) delete process.env.BLEMAP_ADMIN_USER_IDS;
+  else process.env.BLEMAP_ADMIN_USER_IDS = prev;
+});
+
+test("requireAdmin allows allowlisted steward", async () => {
+  const prev = process.env.BLEMAP_ADMIN_USER_IDS;
+  process.env.BLEMAP_ADMIN_USER_IDS = "steward-1";
+  let nextCalled = false;
+  await requireAdmin(
+    { user: { id: "steward-1" } },
+    { status() { return this; }, json() { return this; } },
+    () => {
+      nextCalled = true;
+    }
+  );
+  assert.equal(nextCalled, true);
+  if (prev === undefined) delete process.env.BLEMAP_ADMIN_USER_IDS;
+  else process.env.BLEMAP_ADMIN_USER_IDS = prev;
 });
 
 test("scrapePublishMode defaults to pending", () => {
