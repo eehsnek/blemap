@@ -262,7 +262,6 @@ async function enterAuthenticatedApp({
     return;
   }
   isAuthenticated = true;
-  showAppOnly();
   await updateAuthStatus();
   updateHealthBadge();
   stopRealtimeFn?.();
@@ -372,8 +371,8 @@ async function handleRouteChange(route) {
     return;
   }
 
-  showAppOnly();
   await renderRoute(route);
+  showAppOnly();
 }
 
 async function init() {

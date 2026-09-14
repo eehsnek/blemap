@@ -95,7 +95,7 @@ app.use((err, _req, res, _next) => {
 });
 
 if (!process.env.VERCEL) {
-  const server = app.listen(port, () => {
+  const server = app.listen(port, "0.0.0.0", () => {
     console.log(`BleMap server http://localhost:${port}`);
     console.log(`  App:         http://localhost:${port}/frontend/app.html`);
     logGeminiStartupGuard().catch((err) => {
