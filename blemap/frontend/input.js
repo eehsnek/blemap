@@ -1,3 +1,5 @@
+import { supabase } from "./supabase.js";
+
 const input = document.getElementById("post-input");
 const button = document.getElementById("submit-post");
 const output = document.getElementById("case-details");
@@ -5,6 +7,9 @@ const output = document.getElementById("case-details");
 button.addEventListener("click", submitCase);
 
 async function submitCase() {
+  console.log("========== SUBMIT CASE ==========");
+  console.log("Input text:", input.value.trim());
+  
   const text = input.value.trim();
 
   // 1. Validate input
@@ -17,7 +22,20 @@ async function submitCase() {
     return;
   }
 
-  // 2. Processing state
+  // 2. Get the logged-in session
+  const { data: { session }, error: sessionError } =
+    await supabase.auth.getSession();
+
+  if (sessionError || !session) {
+    output.innerHTML = `
+      <p class="text-red-500 font-semibold">
+        You must be logged in to submit a case.
+      </p>
+    `;
+    return;
+  }
+
+  // 3. Processing state
   button.disabled = true;
   button.innerText = "Processing...";
 
@@ -28,19 +46,19 @@ async function submitCase() {
       </p>
 
       <p class="text-sm text-gray-500 mt-1">
-        Searching for related cases.
+        Generating an embedding and checking for related cases.
       </p>
     </div>
   `;
 
   try {
-    // 3. Submit to backend
     const res = await fetch(
       "http://localhost:4000/api/submit",
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
         },
         body: JSON.stringify({ text })
       }
@@ -54,85 +72,49 @@ async function submitCase() {
 
     console.log("Submission response:", data);
 
-    // 4. Determine actual match result
-    const result = data.case;
+    // Match the backend's actual response contract.
+    const { submission, matched, similarity } = data;
 
-    if (!result) {
-      throw new Error("Submission returned no result.");
+    if (!submission || submission.id == null) {
+      throw new Error("Backend response is missing submission data.");
     }
 
-    // 5. Existing case
-    if (result.matched === true && result.case) {
-      const matchedCase = result.case;
+    console.log("Submission ID:", submission.id);
+    console.log("Matched existing case:", matched);
+    console.log("Similarity:", similarity);
 
-      output.innerHTML = `
-        <div class="bg-white shadow rounded p-5">
-
-          <p class="text-sm font-semibold text-[#43e2d2]">
-            EXISTING CASE FOUND
-          </p>
-
-          <h2 class="font-bold text-xl mt-2">
-            ${matchedCase.topic ?? "Related case"}
-          </h2>
-
-          <p class="text-gray-700 mt-2">
-            ${matchedCase.summary ?? ""}
-          </p>
-
-          <button
-            id="view-case"
-            class="mt-4 bg-[#43e2d2] text-[#13100d]
-                   font-semibold px-4 py-2 rounded"
-          >
-            View Case
-          </button>
-
-        </div>
-      `;
-
-      document
-        .getElementById("view-case")
-        .addEventListener("click", () => {
-          window.location.href =
-            `/frontend/caseDetail.html?id=${matchedCase.id}`;
-        });
-
-      return;
-    }
-
-    // 6. No existing case
+    // 5. Show the appropriate result without claiming a case was created
     output.innerHTML = `
       <div class="bg-white shadow rounded p-5">
-
-        <p class="text-sm font-semibold text-[#ffb779]">
-          NEW PROBLEM IDENTIFIED
+        <p class="text-sm font-semibold text-[#43e2d2]">
+          SUBMISSION RECEIVED
         </p>
 
         <h2 class="font-bold text-xl mt-2">
-          Your submission does not match an existing case.
+          Your submission has been saved for review.
         </h2>
 
         <p class="text-gray-700 mt-2">
-          BleMap has identified this as a new problem
-          that can enter the case pipeline.
+          BleMap has processed your submission and recorded its analysis.
+          An administrator will review it before any case is created or updated.
         </p>
 
         ${
-          result.similarity !== undefined
+          typeof similarity === "number"
             ? `
               <p class="text-sm text-gray-500 mt-3">
-                Similarity score:
-                ${Number(result.similarity).toFixed(3)}
+                Similarity score: ${similarity.toFixed(3)}
               </p>
             `
             : ""
         }
 
+        <p class="text-sm text-gray-500 mt-2">
+          Submission ID: ${submission.id}
+        </p>
       </div>
     `;
 
-    // 7. Clear input
     input.value = "";
 
   } catch (err) {

@@ -7,6 +7,7 @@ import submissionRoutes from "./routes/submissionRoutes.js";
 import ingestionRoutes from "./routes/ingestionRoutes.js";
 import caseRoutes from "./routes/caseRoutes.js";
 import precaseRoutes from "./routes/preCaseRoutes.js";
+import authTestRoutes from "./routes/authTestRoutes.js";
 
 const app = express();
 
@@ -17,5 +18,6 @@ app.use("/api", submissionRoutes);
 app.use("/api", ingestionRoutes);
 app.use("/api", caseRoutes);
 app.use("/api", precaseRoutes);
+app.use("/api", authTestRoutes);
 
 app.listen(4000, () => console.log("Backend running on http://localhost:4000"));

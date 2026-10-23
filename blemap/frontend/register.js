@@ -18,29 +18,16 @@ if (signupBtn) {
       return;
     }
 
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password
+    });
 
     if (error) {
       messageBox.textContent = "❌ " + error.message;
     } else {
-      // Insert user record into users table
-      const { error: insertError } = await supabase
-        .from("users")
-        .insert([
-          {
-            id: data.user.id,
-            email: email,
-            username: email.split("@")[0] // Use email prefix as default username
-          }
-        ]);
-
-      if (insertError) {
-        messageBox.textContent = "❌ Failed to create user profile: " + insertError.message;
-      } else {
-        messageBox.textContent = "✅ Registration successful!";
-        // Redirect to login page after sign up
-        window.location.href = "/frontend/login.html";
-      }
+      messageBox.textContent = "✅ Registration successful!";
+      window.location.href = "/frontend/login.html";
     }
   });
 

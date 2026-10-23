@@ -1,8 +1,8 @@
 import { supabase } from './supabase.js';
-import { signOut } from '../database/signOut.js'
-import { getCurrentUserProfile } from '../database/getUserProfile.js'
 
 let hasLoaded = false;
+
+window.supabase = supabase;
 
 async function showAuthStatus() {
   const {

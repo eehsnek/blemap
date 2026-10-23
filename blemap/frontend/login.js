@@ -27,8 +27,8 @@ if (signinBtn) {
   });
 
   if (goRegisterBtn) {
-  goRegisterBtn.addEventListener('click', () => {
-    window.location.href = "/frontend/register.html";
-  });
-}
+    goRegisterBtn.addEventListener('click', () => {
+      window.location.href = "/frontend/register.html";
+    });
+  }
 }

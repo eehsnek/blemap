@@ -14,15 +14,6 @@ export async function processSubmission(description, embedding) {
     similarity
   } = await findNearestCase(embedding);
 
-  console.log("Submission matching result:", {
-    matchedCase,
-    precase,
-    similarity
-  });
-
-  // Only attach to an existing case if:
-  // 1. A case was actually found
-  // 2. Similarity passes the threshold
   if (
     matchedCase &&
     similarity != null &&

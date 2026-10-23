@@ -11,23 +11,6 @@ export async function submitCase(req, res) {
 
     // 3. Generate embedding
     const embedding = await generateEmbedding(description);
-    /*
-    // javascript
-    async function generateEmbedding(text) {
-        const response = await fetch("http://localhost:8000/embed", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text }),
-        });
-    
-        if (!response.ok) {
-            throw new Error("Embedding service failed");
-        }
-    
-        const { embedding } = await response.json();
-        return embedding;
-    }
-    */
 
     // 4. Find closest existing case
     const nearestCase = await findNearestCase(embedding);

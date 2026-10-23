@@ -65,10 +65,6 @@ export async function findNearestCase(queryEmbedding) {
         emb
       );
 
-      console.log(
-        `Case ${existingCase.id} | ${existingCase.topic} | Similarity: ${similarity}`
-      );
-
       if (similarity > bestSimilarity) {
         bestSimilarity = similarity;
         bestCase = existingCase;
@@ -107,9 +103,6 @@ export async function findNearestCase(queryEmbedding) {
 }
 
 export async function attachToExistingCase(caseId, submissionText) {
-  console.log("========== ATTACH ==========");
-  console.log("Case ID:", caseId);
-  console.log("Submission:", submissionText);
   
   const existing = await getCaseById(caseId);
 
